@@ -60,6 +60,35 @@ describe('result report UI', () => {
     expect(screen.getByRole('button', { name: /匯出錯題至 Google/ })).toBeDisabled();
   });
 
+  it('shows confirmation modal before returning to lobby and clears session on exit', async () => {
+    const user = userEvent.setup();
+    const onExit = vi.fn();
+    // 設定一個現存 session
+    localStorage.setItem(`exam-session:v1:${exam.id}`, JSON.stringify({ examId: exam.id, status: 'submitted' }));
+
+    render(<ResultReport exam={exam} answers={answers} autoSubmitted={false} onExit={onExit} />);
+
+    // 點擊返回測驗大廳按鈕
+    await user.click(screen.getByRole('button', { name: '返回測驗大廳' }));
+
+    // 彈窗出現
+    expect(screen.getByText('確認返回測驗大廳？')).toBeInTheDocument();
+    expect(screen.getByText(/清空本次測驗紀錄與作答結果/)).toBeInTheDocument();
+
+    // 點擊取消
+    await user.click(screen.getByRole('button', { name: '取消（留在本頁）' }));
+    expect(screen.queryByText('確認返回測驗大廳？')).not.toBeInTheDocument();
+    expect(onExit).not.toHaveBeenCalled();
+    expect(localStorage.getItem(`exam-session:v1:${exam.id}`)).not.toBeNull();
+
+    // 再次點擊返回測驗大廳並確認離開
+    await user.click(screen.getByRole('button', { name: '返回測驗大廳' }));
+    await user.click(screen.getByRole('button', { name: '確定離開並清空' }));
+
+    expect(onExit).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem(`exam-session:v1:${exam.id}`)).toBeNull();
+  });
+
   it('restores the result route after refresh without reading a newer exam session', async () => {
     saveExamResult({ version: 1, id: 'saved', exam, answers, submittedAt: '2026-11-10', autoSubmitted: true });
     render(<SavedResultClient sessionId="saved" />);

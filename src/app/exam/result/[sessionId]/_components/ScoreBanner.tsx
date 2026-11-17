@@ -12,9 +12,10 @@ interface Props {
   autoSubmitted: boolean;
   answers?: Record<string, Answer>;
   onReset?: () => void;
+  onExit?: () => void;
 }
 
-export function ScoreBanner({ exam, autoSubmitted, answers = {}, onReset }: Props) {
+export function ScoreBanner({ exam, autoSubmitted, answers = {}, onReset, onExit }: Props) {
   const saved = useRef(false);
   const [savedUrl, setSavedUrl] = useState('');
   const [warning, setWarning] = useState('');
@@ -29,7 +30,7 @@ export function ScoreBanner({ exam, autoSubmitted, answers = {}, onReset }: Prop
     }
   }, [exam, answers, autoSubmitted]);
 
-  return <ResultReport exam={exam} answers={answers} autoSubmitted={autoSubmitted} onReset={onReset}
+  return <ResultReport exam={exam} answers={answers} autoSubmitted={autoSubmitted} onReset={onReset} onExit={onExit}
     initiallyExpanded={false} savedUrl={savedUrl} warning={warning} />;
 }
 

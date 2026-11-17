@@ -6,7 +6,7 @@ import { ProfileForm } from '@/app/(auth)/profile/_components/ProfileForm';
 
 interface UserSettingsViewProps {
   currentUser: UserProfile;
-  onUpdateProfile: (updated: Partial<UserProfile>) => void;
+  onUpdateProfile: (updated: Partial<UserProfile>) => void | Promise<void>;
 }
 
 export const UserSettingsView: React.FC<UserSettingsViewProps> = ({

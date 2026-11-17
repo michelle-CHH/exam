@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   ASSIGNED_EXAM_ID,
   getAssignedExam,
   parseRolesFromSheetRows,
   parseUsersFromSheetRows,
+  updateUserInSpreadsheet,
 } from "@/services/publicSheet";
 
 describe("getAssignedExam", () => {
@@ -150,5 +151,45 @@ describe("parseRolesFromSheetRows & parseUsersFromSheetRows", () => {
       roleName: "用戶",
       identifier: "user02",
     });
+  });
+
+  it("updates user profile including google_sheet_URL via updateUserInSpreadsheet", async () => {
+    const userToUpdate = {
+      id: 1,
+      uuid: "usr_001",
+      status: 1,
+      role: "USER",
+      name: "測試王",
+      nickname: "測試王",
+      identifier: "testuser01",
+      credential: "hashed_pass",
+      google_sheet_URL: "https://docs.google.com/spreadsheets/d/my-personal-sheet-id/edit",
+      created_at: "2026-01-01 00:00:00",
+      updated_at: "2026-11-17 12:00:00",
+    };
+
+    // Mock fetch for REST API fallback flow
+    const originalFetch = global.fetch;
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes("/api/sheet")) {
+        return {
+          ok: true,
+          json: async () => ({ success: true }),
+        };
+      }
+      return {
+        ok: true,
+        json: async () => ({ values: [] }),
+      };
+    });
+    global.fetch = fetchMock;
+
+    try {
+      const res = await updateUserInSpreadsheet(null, "test_sheet_id", userToUpdate);
+      expect(res.success).toBe(true);
+      expect(fetchMock).toHaveBeenCalled();
+    } finally {
+      global.fetch = originalFetch;
+    }
   });
 });

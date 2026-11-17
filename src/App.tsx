@@ -41,6 +41,7 @@ import {
   deleteRowsFromSpreadsheetViaGas,
   formatSheetTimestamp,
   appendUserToSpreadsheet,
+  updateUserInSpreadsheet,
   getAssignedExam,
 } from '@/services/publicSheet';
 import { getAccessToken, googleSignIn, initAuth } from '@/services/googleAuth';
@@ -50,6 +51,7 @@ import {
   readUserPrivateSheet,
   syncPersonalDataToUserSheet,
   ensurePersonalSpreadsheetTablesExist,
+  appendQuestionToUserSheet,
 } from '@/services/userSheet';
 
 export default function App() {
@@ -1078,8 +1080,13 @@ export default function App() {
         }
 
         if (hasGas || token) {
-          const nextRowIdx = usersList.length + 1;
-          await appendUserToSpreadsheet(token, targetId, targetUser, nextRowIdx);
+          const isExisting = usersList.some((u) => u.identifier === targetUser.identifier || u.uuid === targetUser.uuid);
+          if (isExisting) {
+            await updateUserInSpreadsheet(token, targetId, targetUser);
+          } else {
+            const nextRowIdx = usersList.length + 1;
+            await appendUserToSpreadsheet(token, targetId, targetUser, nextRowIdx);
+          }
           await recordAuditLog(logEntry, token);
           showToast(`✅ 帳號「${targetUser.identifier}」已成功寫入 Google 試算表 users 資料表！`, 'success');
         } else {
@@ -1097,16 +1104,65 @@ export default function App() {
     }
   };
 
-  const handleUpdateSelfProfile = (updated: Partial<UserProfile>) => {
-    setCurrentUser((prev) => {
-      if (!prev) return null;
-      const merged = { ...prev, ...updated };
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('exam_logged_in_user', JSON.stringify(merged));
+  const handleUpdateSelfProfile = async (updated: Partial<UserProfile>) => {
+    if (!currentUser) return;
+    const nowStr = formatSheetTimestamp();
+    const merged: UserProfile = {
+      ...currentUser,
+      ...updated,
+      name: updated.nickname ?? updated.name ?? currentUser.name,
+      nickname: updated.nickname ?? currentUser.nickname,
+      updated_at: nowStr,
+    };
+
+    // 1. 本地狀態即時更新 (React state & sessionStorage)
+    setCurrentUser(merged);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('exam_logged_in_user', JSON.stringify(merged));
+    }
+
+    setUsersList((prev) => {
+      const idx = prev.findIndex((u) => u.identifier === merged.identifier || u.uuid === merged.uuid);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = merged;
+        return copy;
       }
-      return merged;
+      return [merged, ...prev];
     });
-    showToast('已成功更新個人資料設定！', 'success');
+
+    // 2. 同步寫入公用資料庫 (users 資料表)
+    const targetId = connectedSpreadsheetId || envSheetId;
+    if (targetId) {
+      try {
+        const hasGas = Boolean(getEnvConfiguredScriptUrl()) || typeof window !== 'undefined';
+        let token = await getAccessToken();
+        if (!hasGas && !token) {
+          showToast('正在開啟 Google 授權視窗，請允許更新個人資料至試算表...', 'info');
+          const signRes = await googleSignIn();
+          token = signRes?.accessToken || null;
+        }
+
+        await updateUserInSpreadsheet(token, targetId, merged);
+
+        const logEntry: AuditLog = {
+          id: `#LOG-USR-${Date.now().toString().slice(-4)}`,
+          action: `使用者「${merged.identifier}」更新個人設定 (綁定 Google Sheet: ${merged.google_sheet_URL || '未設定'})`,
+          target: `${merged.identifier} (users)`,
+          operator: currentOperatorName,
+          timestamp: nowStr,
+          status: 'success',
+        };
+        await recordAuditLog(logEntry, token);
+
+        showToast('✅ 已成功更新個人設定並同步寫入公用資料庫 users 資料表！', 'success');
+      } catch (err: any) {
+        console.error('Error updating user in Google Sheets:', err);
+        showToast(`個人設定已於本地儲存，但寫入公用試算表失敗：${err.message || '連線異常'}`, 'warning');
+      }
+    } else {
+      showToast('已成功更新個人資料設定（本地暫存）！', 'info');
+    }
   };
 
   const handleLogout = () => {
@@ -1150,10 +1206,20 @@ export default function App() {
 
   // 若處於線上作答模式，獨立渲染 ExamClient 考試作答介面
   if (takingExamId) {
+    const handleExitExam = () => {
+      setTakingExamId(null);
+      setActiveExam(null);
+      setActivePage('user-exam-select');
+      if (typeof window !== 'undefined') {
+        window.history.pushState(null, '', '/');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }
+    };
+
     if (activeExam) {
       return (
         <div className="min-h-screen bg-[#f8fafc]">
-          <ExamClient exam={activeExam} />
+          <ExamClient exam={activeExam} onExit={handleExitExam} />
         </div>
       );
     }
@@ -1310,6 +1376,11 @@ export default function App() {
                 personalQuestions={personalQuestions}
                 currentUser={currentUser}
                 onNavigate={(page) => setActivePage(page as AppPageId)}
+                onOpenUploadExam={() => setIsUploadExamOpen(true)}
+                onExamCreated={(newExam) => {
+                  setPersonalExams((prev) => [newExam, ...prev]);
+                  showToast(`🎉 自選考卷「${newExam.title}」已建立成功並寫入個人資料庫！`, 'success');
+                }}
               />
             </div>
           )}
@@ -1380,6 +1451,51 @@ export default function App() {
         isOpen={isUploadExamOpen}
         onClose={() => setIsUploadExamOpen(false)}
         onUploadSuccess={async (importedQuestions, file) => {
+          if (!isAdmin) {
+            // 一般使用者：匯入至個人題庫
+            setPersonalQuestions((prev) => {
+              const combined = [...importedQuestions, ...prev];
+              const map = new Map<string, Question>();
+              combined.forEach((q) => map.set(q.id, q));
+              const unique = Array.from(map.values());
+              if (typeof window !== 'undefined') {
+                try {
+                  localStorage.setItem('quiz_custom_questions', JSON.stringify(unique));
+                } catch {}
+              }
+              return unique;
+            });
+
+            setActivePage('user-selector');
+            showToast(
+              `🎉 上傳成功！已將「${file.name}」中的 ${importedQuestions.length} 筆題目匯入至您的個人題庫。`,
+              'success'
+            );
+
+            // 若有綁定個人 Google Sheet，同步寫入個人試算表 test_bank
+            if (currentUser?.google_sheet_URL) {
+              try {
+                let token = await getAccessToken();
+                if (!token) {
+                  const signRes = await googleSignIn();
+                  token = signRes?.accessToken || null;
+                }
+                if (token) {
+                  await ensurePersonalSpreadsheetTablesExist(token, currentUser.google_sheet_URL);
+                  let rowOffset = personalQuestions.length + 1;
+                  for (const q of importedQuestions) {
+                    await appendQuestionToUserSheet(token, currentUser.google_sheet_URL, q, rowOffset++);
+                  }
+                  showToast('✅ 已同步將題目寫入您的個人 Google 試算表 test_bank！', 'success');
+                }
+              } catch (sheetErr: any) {
+                console.warn('Sync to personal sheet failed:', sheetErr);
+                showToast(`題目已存入本機個人題庫，但寫入個人試算表失敗：${sheetErr.message || '連線錯誤'}`, 'warning');
+              }
+            }
+            return;
+          }
+
           setQuestions((prev) => [...importedQuestions, ...prev]);
           setSelectedSubject('all');
           setActivePage('question-bank');

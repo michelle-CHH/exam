@@ -3,16 +3,27 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import type { Answer, Exam } from '@/types/exam';
+import { clearSession } from '@/contexts/examStorage';
 import { analyzeQuestions, buildExamReport, difficultyName, isWrongQuestion, subjectName } from '@/utils/examReport';
 import { QuestionReviewList } from './QuestionReviewList';
 import { SubjectAnalysisChart } from './SubjectAnalysisChart';
 import { ExportActions } from './ExportActions';
 
-export function ResultReport({ exam, answers, autoSubmitted, onReset, initiallyExpanded = true, savedUrl, warning }: {
+export function ResultReport({
+  exam,
+  answers,
+  autoSubmitted,
+  onReset,
+  onExit,
+  initiallyExpanded = true,
+  savedUrl,
+  warning,
+}: {
   exam: Exam;
   answers: Record<string, Answer>;
   autoSubmitted: boolean;
   onReset?: () => void;
+  onExit?: () => void;
   initiallyExpanded?: boolean;
   savedUrl?: string;
   warning?: string;
@@ -22,6 +33,22 @@ export function ResultReport({ exam, answers, autoSubmitted, onReset, initiallyE
   const [filter, setFilter] = useState('all');
   const [subject, setSubject] = useState('all');
   const [difficulty, setDifficulty] = useState('all');
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+
+  const handleConfirmExit = () => {
+    try {
+      clearSession(exam.id);
+    } catch (e) {
+      console.error('Failed to clear session:', e);
+    }
+    setShowExitConfirm(false);
+    if (onExit) {
+      onExit();
+    } else if (typeof window !== 'undefined') {
+      window.location.href = '/';
+    }
+  };
+
   const scoped = report.items.filter((item) => (subject === 'all' || subjectName(item.question) === subject) &&
     (difficulty === 'all' || difficultyName(item.question) === difficulty));
   const wrongItems = scoped.filter(isWrongQuestion);
@@ -34,7 +61,13 @@ export function ResultReport({ exam, answers, autoSubmitted, onReset, initiallyE
       <header className="border-b border-slate-200 bg-white">
         <div className="exam-shell flex flex-wrap items-center justify-between gap-3 py-5">
           <div><p className="text-xs font-semibold tracking-widest text-[#2f5597]">考試結果詳情</p><h1 className="mt-1 text-xl font-bold">{exam.title}</h1></div>
-          <Link href="/" className="exam-btn rounded-lg">返回測驗大廳</Link>
+          <button
+            type="button"
+            onClick={() => setShowExitConfirm(true)}
+            className="exam-btn rounded-lg cursor-pointer"
+          >
+            返回測驗大廳
+          </button>
         </div>
       </header>
       <div className="exam-shell space-y-6 pt-7">
@@ -79,6 +112,39 @@ export function ResultReport({ exam, answers, autoSubmitted, onReset, initiallyE
           <QuestionReviewList items={visible} />
         </div>}
       </div>
+
+      {/* 返回測驗大廳確認彈窗 */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 flex flex-col gap-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 text-amber-600">
+              <span className="material-symbols-outlined text-3xl">warning</span>
+              <h3 className="text-lg font-bold text-slate-800">確認返回測驗大廳？</h3>
+            </div>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              確定要返回測驗大廳嗎？<br />
+              返回後將會<strong>清空本次測驗紀錄與作答結果</strong>。<br />
+              若您需要保留錯題分析，建議先留在本頁點擊「匯出錯題」儲存 Excel/CSV。
+            </p>
+            <div className="flex items-center justify-end gap-3 mt-2">
+              <button
+                type="button"
+                onClick={() => setShowExitConfirm(false)}
+                className="px-4 py-2 rounded-xl text-sm font-medium border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                取消（留在本頁）
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmExit}
+                className="px-4 py-2 rounded-xl text-sm font-bold bg-rose-600 text-white hover:bg-rose-700 transition-colors shadow-sm cursor-pointer"
+              >
+                確定離開並清空
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

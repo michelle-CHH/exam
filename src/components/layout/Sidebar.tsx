@@ -197,6 +197,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 <span className="material-symbols-outlined text-[20px]">person</span>
               </button>
+
+              {onOpenUploadExam && (
+                <button
+                  onClick={onOpenUploadExam}
+                  className="p-2.5 rounded-lg text-[#004ac6] hover:bg-[#dbe1ff]/50 transition-colors cursor-pointer"
+                  title="上傳題目至個人題庫"
+                  type="button"
+                >
+                  <span className="material-symbols-outlined text-[20px]">upload_file</span>
+                </button>
+              )}
             </>
           )}
         </div>
@@ -464,6 +475,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <span className="material-symbols-outlined text-[20px]">analytics</span>
                 <span>錯題匯入頁面</span>
               </button>
+
+              {/* 上傳題目至個人題庫按鈕 */}
+              {onOpenUploadExam && (
+                <div className="pt-1">
+                  <button
+                    onClick={onOpenUploadExam}
+                    className="flex items-center justify-center gap-2 w-full py-2 bg-[#dbe1ff] text-[#004ac6] rounded-xl text-xs font-bold hover:bg-[#b4c5ff] transition-colors cursor-pointer"
+                    type="button"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">upload_file</span>
+                    <span>上傳題目至個人題庫</span>
+                  </button>
+                </div>
+              )}
 
               {/* 4. 設定 (個人資料) */}
               <div className="pt-2 border-t border-[#c3c6d7]/30">

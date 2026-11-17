@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Question, UserProfile } from '@/types';
+import { Question, ExamPaper, UserProfile } from '@/types';
 import { INITIAL_QUESTIONS } from '@/data/initialData';
 import {
   SourceTab,
@@ -10,7 +10,8 @@ import {
 import { QuestionPickerList } from '@/app/(dashboard)/selector/_components/QuestionPickerList';
 import { AssemblySummaryBar } from '@/app/(dashboard)/selector/_components/AssemblySummaryBar';
 import { SheetBindGuardModal } from '@/components/common/SheetBindGuardModal';
-import { ensurePersonalSpreadsheetTablesExist } from '@/services/userSheet';
+import { ExamGenerationModal } from '@/app/(dashboard)/exams/_components/ExamFormModal';
+import { ensurePersonalSpreadsheetTablesExist, appendExamToUserSheet } from '@/services/userSheet';
 import { getAccessToken, googleSignIn } from '@/services/googleAuth';
 
 interface QuestionSelectorPageProps {
@@ -18,6 +19,8 @@ interface QuestionSelectorPageProps {
   personalQuestions?: Question[];
   currentUser?: UserProfile | null;
   onNavigate?: (page: string) => void;
+  onOpenUploadExam?: () => void;
+  onExamCreated?: (newExam: ExamPaper) => void;
 }
 
 export default function QuestionSelectorPage({
@@ -25,6 +28,8 @@ export default function QuestionSelectorPage({
   personalQuestions: propPersonalQuestions,
   currentUser,
   onNavigate,
+  onOpenUploadExam,
+  onExamCreated: onExamCreatedProp,
 }: QuestionSelectorPageProps = {}) {
   const user = currentUser ?? (() => {
     if (typeof window === 'undefined') return null;
@@ -92,6 +97,7 @@ export default function QuestionSelectorPage({
 
   const currentQuestions = source === 'public' ? publicQuestions : personalQuestions;
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isExamModalOpen, setIsExamModalOpen] = useState(false);
 
   const handleGoToPublicExams = () => {
     setIsGuardModalOpen(false);
@@ -139,36 +145,47 @@ export default function QuestionSelectorPage({
     }
 
     if (selectedQuestions.length === 0) return;
-    const newId = `CUSTOM-${Date.now().toString().slice(-6)}`;
-    const newPaper = {
-      id: newId,
-      title: `自選組卷測驗 (${selectedQuestions.length} 題)`,
-      description: `考生自主挑選 ${selectedQuestions.length} 題之自選組卷`,
-      subject: selectedQuestions[0]?.subjectId || '綜合',
-      subjectId: selectedQuestions[0]?.subjectId || 'math',
-      difficultyLv: 3,
-      questionCount: selectedQuestions.length,
-      totalScore: selectedQuestions.reduce((s, q) => s + q.points, 0),
-      durationMinutes: Math.max(10, selectedQuestions.reduce((s, q) => s + (q.time ?? 1), 0)),
-      createdAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
-      status: 'published' as const,
-      questionIds: selectedIds,
-      sourceScope: 'private' as const,
+    setIsExamModalOpen(true);
+  };
+
+  const handleExamCreated = async (newExam: ExamPaper) => {
+    const personalExam: ExamPaper = {
+      ...newExam,
+      sourceScope: 'private',
     };
 
+    // 1. 寫入本地 localStorage (支援離線與即時瀏覽)
     if (typeof window !== 'undefined') {
       try {
         const existing = JSON.parse(localStorage.getItem('quiz_custom_exams') || '[]');
-        existing.unshift(newPaper);
-        localStorage.setItem('quiz_custom_exams', JSON.stringify(existing));
+        const updated = [personalExam, ...existing.filter((e: ExamPaper) => e.id !== personalExam.id)];
+        localStorage.setItem('quiz_custom_exams', JSON.stringify(updated));
       } catch (err) {
-        console.error('Failed to save custom exam:', err);
-      }
-
-      if (window.confirm(`🎉 試卷「${newPaper.title}」已組卷成功！\n共 ${selectedQuestions.length} 題，總分 ${newPaper.totalScore} 分。\n個人題庫可離線使用與自由編輯。\n\n是否立即前往開始測驗？`)) {
-        window.location.href = `/exam/${newPaper.id}`;
+        console.error('Failed to save custom exam to localStorage:', err);
       }
     }
+
+    // 2. 寫入個人 Google 試算表 (quiz_bank_publish 或 quiz_bank_unpublish)
+    if (user?.google_sheet_URL) {
+      try {
+        let token = await getAccessToken();
+        if (!token) {
+          try {
+            const signRes = await googleSignIn();
+            token = signRes?.accessToken || null;
+          } catch {
+            // 使用者取消或在離線環境，若有 GAS 仍可嘗試寫入
+          }
+        }
+        await appendExamToUserSheet(token, user.google_sheet_URL, personalExam);
+      } catch (err) {
+        console.error('Failed to sync custom exam to personal Google Sheet:', err);
+      }
+    }
+
+    // 3. 通知上層元件並清空已選題目
+    onExamCreatedProp?.(personalExam);
+    setSelectedIds([]);
   };
 
   return (
@@ -211,14 +228,26 @@ export default function QuestionSelectorPage({
         </div>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-extrabold text-[#191c1d]">題目選擇與組卷</h1>
           <p className="text-xs text-[#434655] mt-1">
             從公用或私人題庫挑選題目，快速組合成新考卷
           </p>
         </div>
-        <SourceTab activeSource={source} onChange={handleSourceChange} />
+        <div className="flex items-center gap-2">
+          <SourceTab activeSource={source} onChange={handleSourceChange} />
+          {onOpenUploadExam && (
+            <button
+              type="button"
+              onClick={onOpenUploadExam}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#004ac6] text-white hover:bg-[#003ea8] shadow-xs cursor-pointer transition-all"
+            >
+              <span className="material-symbols-outlined text-[16px]">upload_file</span>
+              <span>上傳題目</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <AssemblySummaryBar
@@ -252,10 +281,17 @@ export default function QuestionSelectorPage({
             </button>
             <button
               type="button"
-              onClick={() => onNavigate ? onNavigate('upload') : (typeof window !== 'undefined' ? window.location.href = '/upload' : undefined)}
-              className="px-4 py-2 rounded-xl text-xs font-bold border border-[#c3c6d7] text-[#191c1d] hover:bg-[#f2f4f7] transition-colors cursor-pointer"
+              onClick={() => {
+                if (onOpenUploadExam) {
+                  onOpenUploadExam();
+                } else if (onNavigate) {
+                  onNavigate('user-selector');
+                }
+              }}
+              className="px-4 py-2 rounded-xl text-xs font-bold border border-[#c3c6d7] text-[#191c1d] hover:bg-[#f2f4f7] transition-colors cursor-pointer flex items-center gap-1.5"
             >
-              前往上傳題目
+              <span className="material-symbols-outlined text-[16px]">upload_file</span>
+              <span>前往上傳題目</span>
             </button>
           </div>
           {initSheetMessage && (
@@ -271,6 +307,15 @@ export default function QuestionSelectorPage({
           onToggleQuestion={handleToggle}
         />
       )}
+      {/* 自組考卷生成彈窗 */}
+      <ExamGenerationModal
+        isOpen={isExamModalOpen}
+        onClose={() => setIsExamModalOpen(false)}
+        selectedQuestions={selectedQuestions}
+        onExamCreated={handleExamCreated}
+        targetLabel="個人專屬試算表"
+        idPrefix="CUSTOM-"
+      />
     </div>
   );
 }

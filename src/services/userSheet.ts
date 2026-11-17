@@ -230,7 +230,7 @@ export async function appendQuestionToUserSheet(
 }
 
 export async function appendExamToUserSheet(
-  accessToken: string,
+  accessToken: string | null,
   userSheetUrl: string,
   exam: ExamPaper,
   rowIndex: number

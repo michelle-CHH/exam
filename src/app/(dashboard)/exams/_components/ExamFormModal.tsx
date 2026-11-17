@@ -9,6 +9,8 @@ interface ExamGenerationModalProps {
   onClose: () => void;
   selectedQuestions: Question[];
   onExamCreated: (newExam: ExamPaper) => void;
+  targetLabel?: string;
+  idPrefix?: string;
 }
 
 export const ExamGenerationModal: React.FC<ExamGenerationModalProps> = ({
@@ -16,6 +18,8 @@ export const ExamGenerationModal: React.FC<ExamGenerationModalProps> = ({
   onClose,
   selectedQuestions,
   onExamCreated,
+  targetLabel,
+  idPrefix,
 }) => {
   const [step, setStep] = useState<'form' | 'success'>('form');
   const [examTitle, setExamTitle] = useState('');
@@ -51,9 +55,13 @@ export const ExamGenerationModal: React.FC<ExamGenerationModalProps> = ({
       setDuration(calculatedDuration);
       setDifficultyLv(calculatedDifficulty);
       setStatus('published');
-      setCreatedExamId(`EXAM-2024-MATH-${String(Math.floor(82 + Math.random() * 50)).padStart(3, '0')}`);
+      if (idPrefix) {
+        setCreatedExamId(`${idPrefix}${Date.now().toString().slice(-6)}`);
+      } else {
+        setCreatedExamId(`EXAM-2024-MATH-${String(Math.floor(82 + Math.random() * 50)).padStart(3, '0')}`);
+      }
     }
-  }, [isOpen, calculatedDuration, calculatedDifficulty]);
+  }, [isOpen, calculatedDuration, calculatedDifficulty, idPrefix]);
 
   useEffect(() => {
     if (step === 'success') {
@@ -81,12 +89,25 @@ export const ExamGenerationModal: React.FC<ExamGenerationModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const detectedSubjectId = selectedQuestions[0]?.subjectId || 'math';
+    const detectedSubjectName =
+      detectedSubjectId === 'chinese' ? '國文' :
+      detectedSubjectId === 'english' ? '英文' :
+      detectedSubjectId === 'math' ? '數學' :
+      detectedSubjectId === 'biology' ? '生物' :
+      detectedSubjectId === 'physics' ? '物理' :
+      detectedSubjectId === 'chemistry' ? '化學' :
+      detectedSubjectId === 'history' ? '歷史' :
+      detectedSubjectId === 'geography' ? '地理' :
+      detectedSubjectId === 'civics' ? '公民' :
+      detectedSubjectId === 'astronomy' ? '地球科學' : '綜合';
+
     const newExam: ExamPaper = {
       id: createdExamId,
       title: examTitle.trim(),
       description: description.trim(),
-      subject: '數學',
-      subjectId: 'math',
+      subject: detectedSubjectName,
+      subjectId: detectedSubjectId,
       difficultyLv: difficultyLv,
       questionCount: selectedQuestions.length,
       totalScore: totalPoints || 100,
@@ -277,7 +298,9 @@ export const ExamGenerationModal: React.FC<ExamGenerationModalProps> = ({
                         className="accent-[#137333]"
                       />
                     </div>
-                    <span className="text-[11px] text-[#565e74] font-medium">寫在公用試卷資料表</span>
+                    <span className="text-[11px] text-[#565e74] font-medium">
+                      寫入{targetLabel || '公用試卷資料表'}
+                    </span>
                   </label>
                 </div>
               </div>
@@ -318,7 +341,7 @@ export const ExamGenerationModal: React.FC<ExamGenerationModalProps> = ({
             <h2 className="text-[20px] text-[#191c1e] font-bold">已成功生成試卷！</h2>
             <p className="text-[13px] text-[#434655]">
               {status === 'published'
-                ? '測驗組卷完成，已正式發布並寫入「公用試卷資料表」。'
+                ? `測驗組卷完成，已正式發布並寫入「${targetLabel || '公用試卷資料表'}」。`
                 : '測驗組卷完成，已存為草稿並寫入「草稿資料表」。'}
             </p>
           </div>
@@ -338,7 +361,7 @@ export const ExamGenerationModal: React.FC<ExamGenerationModalProps> = ({
             <div className="flex justify-between items-center text-[#434655] text-[12px]">
               <span>狀態與儲存:</span>
               <span className={`text-[12px] font-semibold ${status === 'published' ? 'text-[#137333]' : 'text-[#b06000]'}`}>
-                {status === 'published' ? '發布 (公用試卷資料表)' : '草稿 (草稿資料表)'}
+                {status === 'published' ? `發布 (${targetLabel || '公用試卷資料表'})` : '草稿 (草稿資料表)'}
               </span>
             </div>
           </div>

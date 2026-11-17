@@ -1669,6 +1669,106 @@ export async function appendUserToSpreadsheet(
   return { success: true, message: `成功將帳號「${user.identifier}」寫入 Google 試算表 users 資料表！` };
 }
 
+export async function updateUserInSpreadsheet(
+  accessToken: string | null,
+  spreadsheetId: string,
+  user: UserProfile
+): Promise<{ success: boolean; message: string }> {
+  const nowStr = formatSheetTimestamp();
+  const rowValues = [
+    user.id ?? 1,
+    user.uuid,
+    user.status ?? 1,
+    user.role,
+    user.name || user.nickname,
+    user.identifier || '',
+    user.credential || '',
+    user.google_sheet_URL || '',
+    user.last_login_at || '',
+    user.created_at || nowStr,
+    nowStr,
+  ];
+
+  const scriptUrl = getEnvConfiguredScriptUrl();
+  const canUseGas = Boolean(scriptUrl) || typeof window !== 'undefined';
+  if (canUseGas) {
+    try {
+      await postToGasScript({
+        action: 'upsertRow',
+        sheetName: 'users',
+        headers: DATABASE_TABLE_SCHEMAS.users.columns.map((c) => c.label),
+        keyColumnIndex: 1, // uuid
+        keyValue: user.uuid,
+        rowValues,
+      });
+      return { success: true, message: `成功透過 GAS 更新帳號「${user.identifier}」至 users 資料表！` };
+    } catch (gasErr: any) {
+      if (!accessToken) {
+        throw new Error(`GAS 寫入失敗: ${gasErr.message || gasErr}，無法更新 users 資料表`);
+      }
+      console.warn('GAS updateUser error, fallback to REST API:', gasErr);
+    }
+  }
+
+  if (!accessToken) {
+    throw new Error('未授權 Google 帳號且未配置 GAS 寫入腳本，無法更新 users 資料表');
+  }
+
+  // 透過 REST API 讀取 users 表格尋找對應的 row index
+  let targetRowIndex = -1;
+  let totalRows = 1;
+  try {
+    const fetchRes = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/users!A1:K`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }
+    );
+    if (fetchRes.ok) {
+      const data = await fetchRes.json();
+      const rows: any[][] = data.values || [];
+      totalRows = rows.length;
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        if (
+          (user.uuid && String(r[1] || '').trim() === user.uuid) ||
+          (user.identifier && String(r[5] || '').trim() === user.identifier)
+        ) {
+          targetRowIndex = i + 1; // 1-based index in Google Sheets
+          break;
+        }
+      }
+    }
+  } catch (lookupErr) {
+    console.warn('REST API user lookup failed:', lookupErr);
+  }
+
+  if (targetRowIndex > 1) {
+    const range = `users!A${targetRowIndex}:K${targetRowIndex}`;
+    const res = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`,
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ range, values: [rowValues] }),
+      }
+    );
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error?.message || `更新 users 第 ${targetRowIndex} 列失敗 (${res.status})`);
+    }
+
+    return { success: true, message: `成功將帳號「${user.identifier}」更新至 Google 試算表 users 資料表！` };
+  } else {
+    // 找不到對應列，改以 appendUserToSpreadsheet 新增
+    return appendUserToSpreadsheet(accessToken, spreadsheetId, user, totalRows);
+  }
+}
+
 export async function appendQuestionToSpreadsheet(
   accessToken: string | null,
   spreadsheetId: string,

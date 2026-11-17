@@ -11,7 +11,7 @@ import { QuestionMap } from "@/app/exam/[examId]/_components/QuestionMap";
 import { SubmitDialog } from "@/app/exam/[examId]/_components/SubmitDialog";
 import { ScoreBanner as SuccessView } from "@/app/exam/result/[sessionId]/_components/ScoreBanner";
 
-export function ExamClient({ exam }: { exam: Exam }) {
+export function ExamClient({ exam, onExit }: { exam: Exam; onExit?: () => void }) {
   const { state, ready, storageWarning, ...actions } = useExamSession(exam);
   const [mapOpen, setMapOpen] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
@@ -100,6 +100,7 @@ export function ExamClient({ exam }: { exam: Exam }) {
         autoSubmitted={state.remainingSec === 0}
         answers={state.answers}
         onReset={handleReset}
+        onExit={onExit}
       />
     );
   }
