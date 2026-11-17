@@ -261,7 +261,7 @@ export default function QuestionSelectorPage({
           <span className="material-symbols-outlined text-[48px] text-[#737686]">folder_open</span>
           <h3 className="text-base font-bold text-[#191c1d]">私人題庫目前尚無題目 (0 題)</h3>
           <p className="text-xs text-[#737686] max-w-md">
-            您的個人試算表（test_bank）目前為空或尚未建立分頁。若您的試算表為全新空白表，可點擊下方按鈕進行授權並一鍵建立標準分頁。
+            您的個人試算表（test_bank）目前為空或尚未建立分頁。若您的試算表為全新空白表，可點擊下方按鈕進行授權並一鍵建立個人題庫。
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
             <button
@@ -270,7 +270,7 @@ export default function QuestionSelectorPage({
               disabled={isInitializingSheet}
               className="px-4 py-2 rounded-xl text-xs font-bold bg-[#004ac6] text-white hover:bg-[#003da6] transition-colors cursor-pointer shadow-xs disabled:opacity-50"
             >
-              {isInitializingSheet ? '正在建立標準分頁與標題…' : '🛠️ 一鍵在我的 Google Sheet 建立標準分頁'}
+              {isInitializingSheet ? '正在建立個人題庫…' : '🛠️ 一鍵建立個人題庫'}
             </button>
             <button
               type="button"

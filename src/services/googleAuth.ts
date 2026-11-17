@@ -17,6 +17,7 @@ export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope('https://www.googleapis.com/auth/spreadsheets');
 googleProvider.addScope('https://www.googleapis.com/auth/drive.file');
+googleProvider.addScope('https://www.googleapis.com/auth/drive.readonly');
 
 // In-memory token storage (DO NOT store in localStorage or sessionStorage per security guidelines)
 let cachedAccessToken: string | null = null;
@@ -119,7 +120,7 @@ export const requestAccessTokenViaGis = async (): Promise<string | null> => {
       const google = (window as any).google;
       const client = google.accounts.oauth2.initTokenClient({
         client_id: clientId,
-        scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file',
+        scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly',
         callback: (resp: any) => {
           if (resp.error) {
             reject(new Error(resp.error_description || resp.error));

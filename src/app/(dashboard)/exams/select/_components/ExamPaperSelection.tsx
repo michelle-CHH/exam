@@ -278,7 +278,7 @@ export function ExamPaperSelection({
                     </div>
                     <p className="font-semibold text-slate-800 text-base">目前您的個人 Google 試算表中尚無已發布的試卷（0 份）</p>
                     <p className="text-xs text-slate-500 max-w-md leading-relaxed">
-                      若您的 Google 試算表剛建立且只有空白「工作表1」，請點擊下方按鈕進行 Google 授權並一鍵建立 4 張標準分頁（test_bank、quiz_bank_publish、quiz_bank_unpublish、log）。
+                      若您的 Google 試算表剛建立且只有空白「工作表1」，請點擊下方按鈕進行 Google 授權並一鍵建立個人題庫（包含 test_bank、quiz_bank_publish、quiz_bank_unpublish、log 四張分頁）。
                     </p>
                     <div className="flex flex-wrap items-center justify-center gap-3 mt-2">
                       <button
@@ -288,7 +288,7 @@ export function ExamPaperSelection({
                         className="px-4 py-2 bg-[#004ac6] hover:bg-[#003ea8] text-white text-xs font-semibold rounded-lg shadow-sm transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5"
                       >
                         <span className="material-symbols-outlined text-[16px]">playlist_add</span>
-                        <span>{isInitializingSheet ? '正在建立標準分頁與標題…' : '🛠️ 在我的 Google Sheet 建立標準分頁'}</span>
+                        <span>{isInitializingSheet ? '正在建立個人題庫…' : '🛠️ 一鍵建立個人題庫'}</span>
                       </button>
                       {onNavigate && (
                         <button

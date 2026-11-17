@@ -355,3 +355,54 @@ export async function syncPersonalDataToUserSheet(
     message: `已成功將本地 ${questions.length} 題個人試題與 ${exams.length} 份個人試卷同步寫入至個人 Google Sheet！`,
   };
 }
+
+export interface DriveSpreadsheetItem {
+  id: string;
+  name: string;
+  url: string;
+  modifiedTime?: string;
+  isPersonalDatabase?: boolean;
+}
+
+/**
+ * 查詢使用者 Google Drive 內的試算表，自動尋找題庫試算表
+ */
+export async function searchPersonalSpreadsheetsInDrive(
+  accessToken: string
+): Promise<DriveSpreadsheetItem[]> {
+  const query = encodeURIComponent("mimeType='application/vnd.google-apps.spreadsheet' and trashed=false");
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,webViewLink,modifiedTime)&orderBy=modifiedTime desc&pageSize=30`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error?.message || `查詢雲端硬碟試算表失敗 (${res.status})`);
+  }
+
+  const data = await res.json();
+  const files = data.files || [];
+
+  return files.map((file: any) => {
+    const nameLower = (file.name || '').toLowerCase();
+    const isPersonal =
+      nameLower.includes('個人專屬題庫') ||
+      nameLower.includes('personal test bank') ||
+      nameLower.includes('題庫') ||
+      nameLower.includes('test bank') ||
+      nameLower.includes('quiz');
+
+    return {
+      id: file.id,
+      name: file.name,
+      url: file.webViewLink || `https://docs.google.com/spreadsheets/d/${file.id}/edit`,
+      modifiedTime: file.modifiedTime,
+      isPersonalDatabase: isPersonal,
+    };
+  });
+}
