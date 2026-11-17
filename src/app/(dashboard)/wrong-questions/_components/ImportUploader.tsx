@@ -6,12 +6,16 @@ import type { UserProfile } from '@/types';
 interface ImportUploaderProps {
   currentUser?: UserProfile | null;
   onImportFile?: (file: File) => void;
+  onImportGoogleSheet?: () => void | Promise<void>;
+  isLoadingSheet?: boolean;
   onNavigate?: (page: string) => void;
 }
 
 export const ImportUploader: React.FC<ImportUploaderProps> = ({
   currentUser,
   onImportFile,
+  onImportGoogleSheet,
+  isLoadingSheet = false,
   onNavigate,
 }) => {
   const [syncStatus, setSyncStatus] = useState<string>('');
@@ -28,7 +32,7 @@ export const ImportUploader: React.FC<ImportUploaderProps> = ({
 
   const hasBoundSheet = Boolean(user?.google_sheet_URL && user.google_sheet_URL.trim() !== '');
 
-  const handleGoogleSheetImportClick = () => {
+  const handleGoogleSheetImportClick = async () => {
     if (!hasBoundSheet) {
       if (
         window.confirm(
@@ -44,10 +48,9 @@ export const ImportUploader: React.FC<ImportUploaderProps> = ({
       return;
     }
 
-    setSyncStatus('正在從個人 Google Sheet 同步錯題紀錄…');
-    setTimeout(() => {
-      setSyncStatus('已完成從個人試算表讀取錯題資料。');
-    }, 1200);
+    if (onImportGoogleSheet) {
+      await onImportGoogleSheet();
+    }
   };
 
   return (
@@ -118,9 +121,13 @@ export const ImportUploader: React.FC<ImportUploaderProps> = ({
               <button
                 type="button"
                 onClick={handleGoogleSheetImportClick}
-                className="px-4 py-2 rounded-lg text-xs font-bold border border-[#004ac6] text-[#004ac6] bg-white hover:bg-blue-50 transition-colors cursor-pointer w-full sm:w-auto"
+                disabled={isLoadingSheet}
+                className="px-4 py-2 rounded-lg text-xs font-bold border border-[#004ac6] text-[#004ac6] bg-white hover:bg-blue-50 transition-colors cursor-pointer w-full sm:w-auto flex items-center justify-center gap-1.5 disabled:opacity-50"
               >
-                從 Google Sheets 匯入錯題
+                {isLoadingSheet && (
+                  <span className="material-symbols-outlined text-[16px] animate-spin">sync</span>
+                )}
+                <span>{isLoadingSheet ? '正在從雲端試算表讀取錯題…' : '從 Google Sheets 匯入錯題'}</span>
               </button>
             ) : (
               <button

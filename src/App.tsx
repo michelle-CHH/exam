@@ -1391,6 +1391,13 @@ export default function App() {
               <WrongQuestionsPage
                 currentUser={currentUser}
                 onNavigate={(page) => setActivePage(page as AppPageId)}
+                onStartExam={(exam) => {
+                  setActiveExam(exam);
+                  setTakingExamId(exam.id);
+                  if (typeof window !== 'undefined') {
+                    window.history.pushState(null, '', `/exam/${encodeURIComponent(exam.id)}`);
+                  }
+                }}
               />
             </div>
           )}

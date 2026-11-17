@@ -221,12 +221,79 @@ export async function appendQuestionToUserSheet(
   userSheetUrl: string,
   question: Question,
   rowIndex: number = 1
-) {
+): Promise<{ success: boolean; message: string }> {
   const spreadsheetId = extractSpreadsheetId(userSheetUrl);
   if (!spreadsheetId) {
     throw new Error('無效的個人 Google 試算表網址 (google_sheet_URL)');
   }
-  return appendQuestionToSpreadsheet(accessToken, spreadsheetId, question, rowIndex);
+
+  if (!accessToken) {
+    throw new Error('需完成 Google 帳號授權，才能將題目寫入個人試算表');
+  }
+
+  // 確保個人試算表具備標準分頁與標題
+  await ensurePersonalSpreadsheetTablesExist(accessToken, userSheetUrl);
+
+  const categoryId = question.categoryId || 0;
+  const optionsMapOrList = question.options || (question as any).optionsMap;
+  let optionsStr = '';
+  if (Array.isArray(optionsMapOrList)) {
+    const letters = ['A', 'B', 'C', 'D', 'E'];
+    const obj: Record<string, string> = {};
+    optionsMapOrList.forEach((opt: any, i: number) => {
+      obj[letters[i] || String(i + 1)] = typeof opt === 'string' ? opt : opt.text;
+    });
+    optionsStr = JSON.stringify(obj);
+  } else if (typeof optionsMapOrList === 'object' && optionsMapOrList !== null) {
+    optionsStr = JSON.stringify(optionsMapOrList);
+  }
+
+  const diffScore =
+    question.difficultyScore ??
+    (question.difficulty === 'hard' ? 4 : question.difficulty === 'medium' ? 3 : 2);
+  const tagsStr = Array.isArray(question.tags) ? question.tags.join(', ') : '';
+  const nowTimestamp = formatSheetTimestamp();
+
+  const rowValues = [
+    rowIndex,
+    question.id,
+    categoryId,
+    question.subjectId,
+    question.type,
+    question.content,
+    optionsStr,
+    question.correctAnswer,
+    question.points,
+    diffScore,
+    question.explanation || '',
+    tagsStr,
+    nowTimestamp,
+  ];
+
+  // 直接使用 REST API 寫入使用者的個人試算表，不走公用 GAS 代理
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/test_bank!A:M:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        values: [rowValues],
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `寫入題目至個人試算表失敗 (${res.status})`);
+  }
+
+  return {
+    success: true,
+    message: `題目 [${question.id}] 已成功寫入個人 Google 試算表 test_bank 表！`,
+  };
 }
 
 export async function appendExamToUserSheet(
@@ -234,12 +301,59 @@ export async function appendExamToUserSheet(
   userSheetUrl: string,
   exam: ExamPaper,
   rowIndex: number = 1
-) {
+): Promise<{ success: boolean; message: string }> {
   const spreadsheetId = extractSpreadsheetId(userSheetUrl);
   if (!spreadsheetId) {
     throw new Error('無效的個人 Google 試算表網址 (google_sheet_URL)');
   }
-  return appendExamToSpreadsheet(accessToken, spreadsheetId, exam, rowIndex);
+
+  if (!accessToken) {
+    throw new Error('需完成 Google 帳號授權，才能將試卷寫入個人試算表');
+  }
+
+  // 確保個人試算表具備標準分頁與標題
+  await ensurePersonalSpreadsheetTablesExist(accessToken, userSheetUrl);
+
+  const targetSheet = exam.status === 'published' ? 'quiz_bank_publish' : 'quiz_bank_unpublish';
+  const nowTimestamp = formatSheetTimestamp();
+
+  const rowValues = [
+    rowIndex,
+    exam.id,
+    exam.title,
+    exam.subject,
+    exam.difficultyLv,
+    exam.questionCount,
+    exam.totalScore,
+    exam.durationMinutes,
+    nowTimestamp,
+    exam.questionIds ? exam.questionIds.join(', ') : '',
+  ];
+
+  // 直接使用 REST API 寫入使用者的個人試算表，不走公用 GAS 代理
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${targetSheet}!A:J:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        values: [rowValues],
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `寫入考卷至個人試算表失敗 (${res.status})`);
+  }
+
+  return {
+    success: true,
+    message: `考卷 [${exam.id}] 已成功寫入個人 Google 試算表 ${targetSheet}！`,
+  };
 }
 
 /**
@@ -405,4 +519,177 @@ export async function searchPersonalSpreadsheetsInDrive(
       isPersonalDatabase: isPersonal,
     };
   });
+}
+
+export interface WrongQuestionRecord {
+  id: string;
+  submitTime: string;
+  examTitle: string;
+  questionId: string;
+  prompt: string;
+  options: { id: string; text: string }[];
+  actual: string[];
+  expected: string[];
+  status: 'wrong' | 'unanswered';
+  difficulty: string;
+  subject: string;
+  explanation: string;
+}
+
+/**
+ * 從使用者的個人 Google 試算表讀取 'Review notebook' 錯題紀錄
+ */
+export async function fetchWrongQuestionsFromUserSheet(
+  accessToken: string | null,
+  userSheetUrl: string
+): Promise<{ questions: Question[]; records: WrongQuestionRecord[] }> {
+  const spreadsheetId = extractSpreadsheetId(userSheetUrl);
+  if (!spreadsheetId) {
+    throw new Error('無效的個人 Google 試算表網址 (google_sheet_URL)');
+  }
+
+  let rows: string[][] = [];
+
+  // 1. 若有 token 優先以 REST API 讀取
+  if (accessToken) {
+    try {
+      const res = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'Review notebook'!A1:K`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        rows = data.values || [];
+      }
+    } catch (e) {
+      console.warn('REST API fetch Review notebook failed, falling back to gviz:', e);
+    }
+  }
+
+  // 2. 降級使用 gviz 讀取公開試算表
+  if (rows.length === 0) {
+    const gvizUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&headers=1&sheet=${encodeURIComponent('Review notebook')}`;
+    const res = await fetch(gvizUrl);
+    if (res.ok) {
+      const text = await res.text();
+      const match = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]+)\);?\s*$/);
+      if (match && match[1]) {
+        const json = JSON.parse(match[1]);
+        if (json.table?.rows) {
+          rows = json.table.rows.map((r: any) =>
+            (r.c || []).map((cell: any) => (cell?.v !== undefined && cell?.v !== null ? String(cell.v) : ''))
+          );
+        }
+      }
+    }
+  }
+
+  if (rows.length === 0) {
+    return { questions: [], records: [] };
+  }
+
+  // 排除標題列 (若第一列是交卷時間等標題)
+  const dataRows = (rows[0][0] || '').includes('交卷時間') || (rows[0][0] || '').includes('Timestamp')
+    ? rows.slice(1)
+    : rows;
+
+  const questions: Question[] = [];
+  const records: WrongQuestionRecord[] = [];
+
+  dataRows.forEach((row, idx) => {
+    // 欄位對應:
+    // 0: submitTime, 1: examTitle, 2: questionId, 3: prompt, 4: optionsStr,
+    // 5: actual, 6: expected, 7: status, 8: difficulty, 9: subject, 10: explanation
+    const submitTime = row[0] || '';
+    const examTitle = row[1] || '';
+    const questionId = row[2] || `WRONG-Q-${idx + 1}`;
+    const prompt = row[3] || '';
+    const optionsStr = row[4] || '';
+    const actualStr = row[5] || '';
+    const expectedStr = row[6] || '';
+    const statusStr = row[7] || '';
+    const difficultyStr = row[8] || '中等';
+    const subjectStr = row[9] || '綜合';
+    const explanation = row[10] || '';
+
+    // 解析 options: 例如 "A. 選項內容\nB. 選項內容"
+    const parsedOptions: { id: string; text: string }[] = [];
+    if (optionsStr) {
+      const lines = optionsStr.split('\n');
+      lines.forEach((line) => {
+        const trimmed = line.trim();
+        const m = trimmed.match(/^([A-Ea-e1-9])[\.\:\、\s](.+)$/);
+        if (m) {
+          parsedOptions.push({ id: m[1].toUpperCase(), text: m[2].trim() });
+        } else if (trimmed) {
+          const letter = ['A', 'B', 'C', 'D', 'E'][parsedOptions.length] || String(parsedOptions.length + 1);
+          parsedOptions.push({ id: letter, text: trimmed });
+        }
+      });
+    }
+
+    if (parsedOptions.length === 0) {
+      parsedOptions.push(
+        { id: 'A', text: '選項 A' },
+        { id: 'B', text: '選項 B' },
+        { id: 'C', text: '選項 C' },
+        { id: 'D', text: '選項 D' }
+      );
+    }
+
+    const actual = actualStr.split(/[,、\s]+/).filter(Boolean);
+    const expected = expectedStr.split(/[,、\s]+/).filter(Boolean);
+    const status: 'wrong' | 'unanswered' =
+      statusStr.includes('未作答') || actual.length === 0 ? 'unanswered' : 'wrong';
+
+    const subjectId =
+      subjectStr.includes('國') ? 'chinese' :
+      subjectStr.includes('英') ? 'english' :
+      subjectStr.includes('數') ? 'math' :
+      subjectStr.includes('物') ? 'physics' :
+      subjectStr.includes('化') ? 'chemistry' :
+      subjectStr.includes('生') ? 'biology' :
+      subjectStr.includes('歷') ? 'history' :
+      subjectStr.includes('地') ? 'geography' : 'math';
+
+    const difficulty: 'easy' | 'medium' | 'hard' =
+      difficultyStr.includes('難') || difficultyStr.includes('hard') ? 'hard' :
+      difficultyStr.includes('易') || difficultyStr.includes('簡') || difficultyStr.includes('easy') ? 'easy' : 'medium';
+
+    const qItem: Question = {
+      id: questionId,
+      categoryId: 1,
+      subjectId,
+      type: expected.length > 1 ? 'multiple' : 'single',
+      content: prompt,
+      options: parsedOptions.map((o) => `${o.id}. ${o.text}`),
+      optionsMap: Object.fromEntries(parsedOptions.map((o) => [o.id, o.text])),
+      correctAnswer: expected.join(','),
+      points: 5,
+      difficulty,
+      explanation,
+      tags: [subjectStr, difficultyStr, '錯題複習'],
+      updatedAt: formatSheetTimestamp(),
+    };
+
+    questions.push(qItem);
+    records.push({
+      id: questionId,
+      submitTime,
+      examTitle,
+      questionId,
+      prompt,
+      options: parsedOptions,
+      actual,
+      expected,
+      status,
+      difficulty: difficultyStr,
+      subject: subjectStr,
+      explanation,
+    });
+  });
+
+  return { questions, records };
 }
