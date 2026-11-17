@@ -1773,7 +1773,7 @@ export async function appendQuestionToSpreadsheet(
   accessToken: string | null,
   spreadsheetId: string,
   question: Question,
-  rowIndex: number,
+  rowIndex: number = 1,
   userId: number = 1
 ): Promise<{ success: boolean; message: string }> {
   const categoryId = question.categoryId || 0;
@@ -1850,7 +1850,7 @@ export async function appendExamToSpreadsheet(
   accessToken: string | null,
   spreadsheetId: string,
   exam: ExamPaper,
-  rowIndex: number
+  rowIndex: number = 1
 ): Promise<{ success: boolean; message: string }> {
   const targetSheet = exam.status === 'published' ? 'quiz_bank_publish' : 'quiz_bank_unpublish';
   const nowTimestamp = formatSheetTimestamp();

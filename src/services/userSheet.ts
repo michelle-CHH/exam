@@ -217,10 +217,10 @@ export async function ensurePersonalSpreadsheetTablesExist(
 }
 
 export async function appendQuestionToUserSheet(
-  accessToken: string,
+  accessToken: string | null,
   userSheetUrl: string,
   question: Question,
-  rowIndex: number
+  rowIndex: number = 1
 ) {
   const spreadsheetId = extractSpreadsheetId(userSheetUrl);
   if (!spreadsheetId) {
@@ -233,7 +233,7 @@ export async function appendExamToUserSheet(
   accessToken: string | null,
   userSheetUrl: string,
   exam: ExamPaper,
-  rowIndex: number
+  rowIndex: number = 1
 ) {
   const spreadsheetId = extractSpreadsheetId(userSheetUrl);
   if (!spreadsheetId) {
