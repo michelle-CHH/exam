@@ -410,7 +410,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     type="button"
                   >
                     <span className="material-symbols-outlined text-[18px]">upload_file</span>
-                    <span>上傳整份試卷</span>
+                    <span>批次上傳</span>
                   </button>
                 )}
               </div>

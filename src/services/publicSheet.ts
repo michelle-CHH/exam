@@ -1,5 +1,5 @@
 import { Question, ExamPaper, Exam, SheetTableSchema, ReadSpreadsheetResult, SubjectId, CategoryItem, AuditLog, UserProfile, RoleItem, AuthLoginResult } from '@/types';
-import { assignedExam } from '@/services/mockExamData';
+import { INITIAL_QUESTIONS, INITIAL_EXAM_PAPERS } from '@/data/initialData';
 import { formatSheetTimestamp } from '@/utils/formatters';
 import { formatOptionsToJsonObject, parseSheetOptionJson, extractSpreadsheetId } from '@/utils/sheetParser';
 
@@ -10,12 +10,18 @@ export async function getAssignedExam(
   extraExams: ExamPaper[] = [],
   extraQuestions: Question[] = []
 ): Promise<Exam | null> {
-  if (examId === ASSIGNED_EXAM_ID) return assignedExam;
-
   // 試卷查表：優先使用線上試卷 (extraExams: Google Sheet)；若離線或線上無試卷，才讀取 data 內試卷 INITIAL_EXAM_PAPERS
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
   const examMap = new Map<string, ExamPaper>();
 
+  // 1. 載入預設初始試卷
+  for (const e of INITIAL_EXAM_PAPERS) {
+    if (e?.id) {
+      examMap.set(e.id, e);
+    }
+  }
+
+  // 2. 載入線上試卷 (Google Sheet)
   if (extraExams && extraExams.length > 0) {
     for (const e of extraExams) {
       if (e?.id && !examMap.has(e.id)) {
@@ -50,6 +56,15 @@ export async function getAssignedExam(
 
   // 題目資料庫查表：優先取線上題庫 (extraQuestions: 來自 Google Sheet) 或離線公用快照
   const questionMap = new Map<string, Question>();
+
+  // 1. 載入預設初始題庫 (含標準答案與解析)
+  for (const q of INITIAL_QUESTIONS) {
+    if (q?.id) {
+      questionMap.set(q.id, q);
+    }
+  }
+
+  // 2. 載入線上題庫 (Google Sheet)
   if (extraQuestions && extraQuestions.length > 0) {
     for (const q of extraQuestions) {
       if (q?.id && !questionMap.has(q.id)) {
@@ -129,7 +144,7 @@ export async function getAssignedExam(
   return {
     id: paper.id,
     title: paper.title,
-    subtitle: `${paper.subject} ・ ${examQuestions.length} 題 ・ ${paper.durationMinutes} 分鐘`,
+    subtitle: (paper as any).subtitle || (paper.id === ASSIGNED_EXAM_ID ? '公職考試 ・ 50 題 ・ 60 分鐘' : `${paper.subject} ・ ${examQuestions.length} 題 ・ ${paper.durationMinutes} 分鐘`),
     durationSec: (paper.durationMinutes || 60) * 60,
     passingScore: paper.passingScore || 60,
     questions: examQuestions,

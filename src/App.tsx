@@ -1425,7 +1425,7 @@ export default function App() {
       <ExamGenerationModal
         isOpen={isExamGenerationOpen}
         onClose={() => setIsExamGenerationOpen(false)}
-        selectedQuestions={questions.filter((q) =>
+        selectedQuestions={[...questions, ...personalQuestions].filter((q) =>
           selectedQuestionIds.includes(q.id)
         )}
         onExamCreated={handleExamCreated}
@@ -1457,7 +1457,7 @@ export default function App() {
       <UploadExamModal
         isOpen={isUploadExamOpen}
         onClose={() => setIsUploadExamOpen(false)}
-        onUploadSuccess={async (importedQuestions, file) => {
+        onUploadSuccess={async (importedQuestions, file, autoGenerateExam) => {
           if (!isAdmin) {
             // 一般使用者：匯入至個人題庫
             setPersonalQuestions((prev) => {
@@ -1473,9 +1473,14 @@ export default function App() {
               return unique;
             });
 
-            setActivePage('user-selector');
+            if (autoGenerateExam) {
+              setSelectedQuestionIds(importedQuestions.map((q) => q.id));
+              setIsExamGenerationOpen(true);
+            } else {
+              setActivePage('user-selector');
+            }
             showToast(
-              `🎉 上傳成功！已將「${file.name}」中的 ${importedQuestions.length} 筆題目匯入至您的個人題庫。`,
+              `🎉 批次上傳成功！已將「${file.name}」中的 ${importedQuestions.length} 筆題目匯入至您的個人題庫。`,
               'success'
             );
 
@@ -1504,10 +1509,15 @@ export default function App() {
           }
 
           setQuestions((prev) => [...importedQuestions, ...prev]);
-          setSelectedSubject('all');
-          setActivePage('question-bank');
+          if (autoGenerateExam) {
+            setSelectedQuestionIds(importedQuestions.map((q) => q.id));
+            setIsExamGenerationOpen(true);
+          } else {
+            setSelectedSubject('all');
+            setActivePage('question-bank');
+          }
           showToast(
-            `✅ 上傳成功！「${file.name}」通過審查，已匯入 ${importedQuestions.length} 筆題目。`,
+            `✅ 批次上傳成功！「${file.name}」通過審查，已匯入 ${importedQuestions.length} 筆題目。`,
             'success'
           );
 
@@ -1515,7 +1525,7 @@ export default function App() {
           const now = formatSheetTimestamp();
           const logEntry: AuditLog = {
             id: `#LOG-UPL-${Date.now().toString().slice(-4)}`,
-            action: `上傳整份試卷匯入題庫 (${importedQuestions.length} 題)`,
+            action: `批次上傳匯入題庫 (${importedQuestions.length} 題)`,
             target: `${file.name} (test_bank)`,
             operator: currentOperatorName,
             timestamp: now,

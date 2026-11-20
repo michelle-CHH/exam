@@ -8,8 +8,37 @@ import {
 } from "@/services/publicSheet";
 
 describe("getAssignedExam", () => {
+  const samplePaper = {
+    id: "assigned-demo",
+    title: "計算機概論 模擬測驗",
+    description: "公職考試 ・ 50 題 ・ 60 分鐘",
+    subject: "計算機概論",
+    subjectId: "math" as const,
+    difficultyLv: 3,
+    questionCount: 50,
+    totalScore: 100,
+    durationMinutes: 60,
+    createdAt: "2024-05-20",
+    status: "published" as const,
+    questionIds: Array.from({ length: 50 }, (_, i) => `assigned-${String(i + 1).padStart(2, '0')}`),
+  };
+
+  const sampleQuestions = Array.from({ length: 50 }, (_, i) => ({
+    id: `assigned-${String(i + 1).padStart(2, '0')}`,
+    subjectId: "math" as const,
+    type: "single" as const,
+    content: `題目 ${i + 1}`,
+    difficulty: "medium" as const,
+    points: 2,
+    options: ["選項A", "選項B", "選項C", "選項D"],
+    correctAnswer: "B",
+    explanation: "解析內容",
+    tags: ["計算機概論"],
+    updatedAt: "2024-05-20",
+  }));
+
   it("returns the assigned exam for the known id", async () => {
-    const exam = await getAssignedExam(ASSIGNED_EXAM_ID);
+    const exam = await getAssignedExam(ASSIGNED_EXAM_ID, [samplePaper], sampleQuestions);
     expect(exam).not.toBeNull();
     expect(exam?.id).toBe("assigned-demo");
     expect(exam?.title).toBe("計算機概論 模擬測驗");
@@ -18,22 +47,24 @@ describe("getAssignedExam", () => {
   });
 
   it("returns null for an unknown id", async () => {
-    expect(await getAssignedExam("nope")).toBeNull();
+    expect(await getAssignedExam("nope", [samplePaper], sampleQuestions)).toBeNull();
   });
 
   it("provides 50 single-choice questions worth 2 points each", async () => {
-    const exam = await getAssignedExam(ASSIGNED_EXAM_ID);
+    const exam = await getAssignedExam(ASSIGNED_EXAM_ID, [samplePaper], sampleQuestions);
     expect(exam?.questions).toHaveLength(50);
     for (const question of exam?.questions ?? []) {
       expect(question.type).toBe("single");
       expect(question.points).toBe(2);
       expect(question.options).toHaveLength(4);
       expect(question.options.map((option) => option.id)).toEqual(["A", "B", "C", "D"]);
+      expect(question.answer).toBeDefined();
+      expect(['A', 'B', 'C', 'D']).toContain(question.answer);
     }
   });
 
   it("uses unique question ids and a stable prefix", async () => {
-    const exam = await getAssignedExam(ASSIGNED_EXAM_ID);
+    const exam = await getAssignedExam(ASSIGNED_EXAM_ID, [samplePaper], sampleQuestions);
     const ids = exam?.questions.map((question) => question.id) ?? [];
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids.every((id) => id.startsWith("assigned-"))).toBe(true);

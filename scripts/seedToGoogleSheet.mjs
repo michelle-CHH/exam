@@ -20,15 +20,18 @@ async function fetchSheetRows(name) {
   return { cols, rows };
 }
 
-// 讀取 50 題 mock 題目
+// 舊版一次性種子腳本 (試算表已完成初始化，本腳本安全封存)
 const mockDataPath = path.resolve('src/data/assignedExamQuestions.ts');
-const mockContent = fs.readFileSync(mockDataPath, 'utf-8');
+let mockContent = '';
+if (fs.existsSync(mockDataPath)) {
+  mockContent = fs.readFileSync(mockDataPath, 'utf-8');
+}
 
-// 動態載入編譯後的 Question 實體
-import('../src/data/assignedExamQuestions.ts').catch(() => null);
-
-// 為了確保完整獨立執行，將 50 題題目與解答直接構建
-const { assignedExam } = await import('../src/services/mockExamData.ts');
+let assignedExam = { questions: [] };
+try {
+  const mod = await import('../src/services/mockExamData.ts');
+  assignedExam = mod.assignedExam || { questions: [] };
+} catch {}
 
 const QUESTION_ANSWERS = {
   'assigned-01': { answer: 'B', explanation: '算術邏輯單元（ALU）負責執行所有算術運算與邏輯判斷。', tags: '計算機結構, ALU' },

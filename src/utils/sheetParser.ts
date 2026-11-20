@@ -60,7 +60,11 @@ export function parseSheetOptionJson(rawOptions: unknown): {
         parsedOptions = parsed.map(String);
       } else if (typeof parsed === 'object' && parsed !== null) {
         parsedOptionsMap = parsed as Record<string, string>;
-        parsedOptions = Object.entries(parsed).map(([k, v]) => `${k}. ${v}`);
+        parsedOptions = Object.values(parsed).map((v) => {
+          const str = String(v);
+          const clean = str.replace(/^[A-Za-z0-9][\.\、\:\)\s]+\s*|^\([A-Za-z0-9]\)\s*/, '').trim();
+          return clean || str;
+        });
       }
     } catch {
       if (typeof rawOptions === 'string') {

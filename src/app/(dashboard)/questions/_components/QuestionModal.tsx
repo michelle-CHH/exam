@@ -48,7 +48,13 @@ export const CreateQuestionModal: React.FC<CreateQuestionModalProps> = ({
       setOptB(initialQuestion.options?.[1] || '');
       setOptC(initialQuestion.options?.[2] || '');
       setOptD(initialQuestion.options?.[3] || '');
-      setCorrectAnswer(initialQuestion.correctAnswer || '');
+      
+      let ans = initialQuestion.correctAnswer || '';
+      if (initialQuestion.type === 'true_false') {
+        const u = ans.trim().toUpperCase();
+        ans = (u === 'B' || u === '錯誤' || u.includes('FALSE') || u.includes('錯')) ? 'B' : 'A';
+      }
+      setCorrectAnswer(ans);
       setExplanation(initialQuestion.explanation || '');
     } else {
       setSubjectId(defaultSubjectId);
@@ -79,8 +85,14 @@ export const CreateQuestionModal: React.FC<CreateQuestionModalProps> = ({
 
     const options =
       type === 'true_false'
-        ? ['正確 (True)', '錯誤 (False)']
+        ? ['正確', '錯誤']
         : [optA, optB, optC, optD].filter(Boolean);
+
+    let finalCorrectAnswer = correctAnswer.trim();
+    if (type === 'true_false') {
+      const u = finalCorrectAnswer.toUpperCase();
+      finalCorrectAnswer = (u === 'B' || u === '錯誤' || u.includes('FALSE') || u.includes('錯')) ? 'B' : 'A';
+    }
 
     const diffLevel: DifficultyLevel =
       difficultyScore >= 4.0 ? 'hard' : difficultyScore >= 2.5 ? 'medium' : 'easy';
@@ -97,7 +109,7 @@ export const CreateQuestionModal: React.FC<CreateQuestionModalProps> = ({
       tags: tags.length > 0 ? tags : ['未分類'],
       updatedAt: formatSheetTimestamp(),
       options,
-      correctAnswer: correctAnswer.trim(),
+      correctAnswer: finalCorrectAnswer,
       explanation: explanation.trim(),
     };
 
@@ -165,7 +177,16 @@ export const CreateQuestionModal: React.FC<CreateQuestionModalProps> = ({
               <label className="text-[12px] text-[#191c1e] font-semibold">試題類型</label>
               <select
                 value={type}
-                onChange={(e) => setType(e.target.value as 'single' | 'multiple' | 'true_false')}
+                onChange={(e) => {
+                  const nextType = e.target.value as 'single' | 'multiple' | 'true_false';
+                  setType(nextType);
+                  if (nextType === 'true_false') {
+                    const u = correctAnswer.trim().toUpperCase();
+                    if (u !== 'A' && u !== 'B') {
+                      setCorrectAnswer('A');
+                    }
+                  }
+                }}
                 className="bg-[#f2f4f6] text-[#191c1e] text-[13px] px-3 py-2 rounded-lg border border-[#c3c6d7] focus:ring-2 focus:ring-[#004ac6]/40 focus:outline-none"
               >
                 <option value="single">單選題 (Single Choice)</option>
@@ -290,13 +311,42 @@ export const CreateQuestionModal: React.FC<CreateQuestionModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-[12px] text-[#191c1e] font-semibold">正確解答</label>
-              <input
-                type="text"
-                placeholder={type === 'true_false' ? '正確 (True)' : '例如：A 或 -3'}
-                value={correctAnswer}
-                onChange={(e) => setCorrectAnswer(e.target.value)}
-                className="bg-[#f2f4f6] text-[#191c1e] text-[13px] px-3 py-2 rounded-lg border border-[#c3c6d7]"
-              />
+              {type === 'true_false' ? (
+                <div className="flex items-center gap-2 h-[38px]">
+                  <button
+                    type="button"
+                    onClick={() => setCorrectAnswer('A')}
+                    className={`flex-1 h-full rounded-lg font-semibold text-[13px] border transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      correctAnswer === 'A' || !correctAnswer || correctAnswer === '正確'
+                        ? 'bg-[#004ac6] text-white border-[#004ac6] shadow-sm'
+                        : 'bg-[#f2f4f6] text-[#434655] border-[#c3c6d7] hover:bg-[#e4e7e9]'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                    <span>正確</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCorrectAnswer('B')}
+                    className={`flex-1 h-full rounded-lg font-semibold text-[13px] border transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      correctAnswer === 'B' || correctAnswer === '錯誤'
+                        ? 'bg-[#ba1a1a] text-white border-[#ba1a1a] shadow-sm'
+                        : 'bg-[#f2f4f6] text-[#434655] border-[#c3c6d7] hover:bg-[#e4e7e9]'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[16px]">cancel</span>
+                    <span>錯誤</span>
+                  </button>
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  placeholder="例如：A 或 -3"
+                  value={correctAnswer}
+                  onChange={(e) => setCorrectAnswer(e.target.value)}
+                  className="bg-[#f2f4f6] text-[#191c1e] text-[13px] px-3 py-2 rounded-lg border border-[#c3c6d7]"
+                />
+              )}
             </div>
             <div className="sm:col-span-2 flex flex-col gap-1">
               <label className="text-[12px] text-[#191c1e] font-semibold">題目詳解 / 評分標準</label>

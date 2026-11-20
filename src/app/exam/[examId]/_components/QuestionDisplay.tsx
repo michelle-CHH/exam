@@ -79,6 +79,7 @@ export function QuestionDisplay({ question, number, answer, flagged, onAnswer, o
       >
         {question.options.map((option) => {
           const isSelected = selected.includes(option.id);
+          const cleanText = option.text.replace(/^[A-Za-z0-9][\.\、\:\)\s]+\s*|^\([A-Za-z0-9]\)\s*/, '').trim();
           return (
             <button
               key={option.id}
@@ -92,8 +93,8 @@ export function QuestionDisplay({ question, number, answer, flagged, onAnswer, o
               <span aria-hidden="true" className="exam-mark">
                 {isSelected ? "✓" : ""}
               </span>
-              <span className="font-bold text-[#5b6673]">{option.id}</span>
-              <span>{option.text}</span>
+              <span className="font-bold text-[#5b6673]">{option.id}.</span>
+              <span>{cleanText || option.text}</span>
             </button>
           );
         })}

@@ -16,13 +16,16 @@ export function QuestionReviewList({ items }: { items: ReviewQuestion[] }) {
           <p className="mt-2 text-xs text-slate-500">{subjectName(item.question)} · {difficultyName(item.question)}</p>
           <p className="mt-4 whitespace-pre-wrap text-base leading-relaxed text-slate-900">{item.question.prompt}</p>
           <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-            {item.question.options.map((option) => (
-              <li key={option.id} className={`rounded-lg border p-3 text-sm ${item.expected.includes(option.id.toUpperCase()) ? 'border-emerald-300 bg-emerald-50' : item.actual.includes(option.id.toUpperCase()) ? 'border-rose-200 bg-rose-50' : 'border-slate-200'}`}>
-                <span className="font-semibold">{option.id}.</span> {option.text}
-                {item.expected.includes(option.id.toUpperCase()) && <span className="ml-2 text-xs font-semibold text-emerald-800">正確答案</span>}
-                {item.actual.includes(option.id.toUpperCase()) && <span className="ml-2 text-xs font-semibold">你的選擇</span>}
-              </li>
-            ))}
+            {item.question.options.map((option) => {
+              const cleanText = option.text.replace(/^[A-Za-z0-9][\.\、\:\)\s]+\s*|^\([A-Za-z0-9]\)\s*/, '').trim();
+              return (
+                <li key={option.id} className={`rounded-lg border p-3 text-sm ${item.expected.includes(option.id.toUpperCase()) ? 'border-emerald-300 bg-emerald-50' : item.actual.includes(option.id.toUpperCase()) ? 'border-rose-200 bg-rose-50' : 'border-slate-200'}`}>
+                  <span className="font-semibold">{option.id}.</span> {cleanText || option.text}
+                  {item.expected.includes(option.id.toUpperCase()) && <span className="ml-2 text-xs font-semibold text-emerald-800">正確答案</span>}
+                  {item.actual.includes(option.id.toUpperCase()) && <span className="ml-2 text-xs font-semibold">你的選擇</span>}
+                </li>
+              );
+            })}
           </ul>
           <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-700">
             <p>你的答案：<strong>{item.actual.join('、') || '未作答'}</strong></p>

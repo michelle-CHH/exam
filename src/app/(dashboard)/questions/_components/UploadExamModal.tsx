@@ -10,7 +10,7 @@ import {
 interface UploadExamModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onUploadSuccess?: (questions: Question[], file: File) => void;
+  onUploadSuccess?: (questions: Question[], file: File, autoGenerateExam?: boolean) => void;
 }
 
 export const UploadExamModal: React.FC<UploadExamModalProps> = ({
@@ -23,6 +23,7 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
   const [isChecking, setIsChecking] = useState(false);
   const [validationResult, setValidationResult] =
     useState<ExamUploadValidationResult | null>(null);
+  const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
   const [uploadSucceeded, setUploadSucceeded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -32,16 +33,35 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
       setIsDragging(false);
       setIsChecking(false);
       setValidationResult(null);
+      setIsPreviewExpanded(false);
       setUploadSucceeded(false);
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleSelectNewFile = (file: File | null) => {
+  const handleSelectNewFile = async (file: File | null) => {
     setSelectedFile(file);
     setValidationResult(null);
+    setIsPreviewExpanded(false);
     setUploadSucceeded(false);
+
+    if (!file) return;
+
+    setIsChecking(true);
+    try {
+      const result = await validateAndParseExamFile(file);
+      setValidationResult(result);
+    } catch (err: any) {
+      setValidationResult({
+        isValid: false,
+        questions: [],
+        fileError: err?.message || '檔案解析失敗，請確認檔案格式',
+        rowErrors: [],
+      });
+    } finally {
+      setIsChecking(false);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -78,25 +98,13 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedFile) return;
+  const handlePerformUpload = (autoGenerateExam: boolean) => {
+    if (!selectedFile || !validationResult || !validationResult.isValid) return;
+    if (validationResult.questions.length === 0) return;
 
-    setIsChecking(true);
-    setValidationResult(null);
-    setUploadSucceeded(false);
-
-    try {
-      const result = await validateAndParseExamFile(selectedFile);
-      setValidationResult(result);
-
-      if (result.isValid && result.questions.length > 0) {
-        setUploadSucceeded(true);
-        onUploadSuccess?.(result.questions, selectedFile);
-      }
-    } finally {
-      setIsChecking(false);
-    }
+    setUploadSucceeded(true);
+    onUploadSuccess?.(validationResult.questions, selectedFile, autoGenerateExam);
+    onClose();
   };
 
   const formatFileSize = (bytes: number) => {
@@ -122,7 +130,7 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
             <span className="w-8 h-8 rounded-lg bg-[#dbe1ff] text-[#004ac6] flex items-center justify-center">
               <span className="material-symbols-outlined text-[20px]">upload_file</span>
             </span>
-            <h2 className="text-[18px] text-[#191c1e] font-bold">上傳整份試卷</h2>
+            <h2 className="text-[18px] text-[#191c1e] font-bold">批次上傳</h2>
           </div>
           <button
             type="button"
@@ -134,7 +142,7 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={(e) => { e.preventDefault(); handlePerformUpload(false); }} className="flex flex-col gap-4">
           {/* Sample Excel Download Banner - Single Line */}
           <div className="flex items-center justify-between gap-4 px-4 py-2.5 rounded-lg bg-[#e8edff] text-[#004ac6] border border-[#b4c5ff]/60 text-[13px]">
             <div className="flex items-center gap-2 whitespace-nowrap">
@@ -169,7 +177,7 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 text-center transition-colors cursor-pointer ${
+            className={`border-2 border-dashed rounded-xl p-5 flex flex-col items-center justify-center gap-3 text-center transition-colors cursor-pointer ${
               isDragging
                 ? 'border-[#004ac6] bg-[#dbe1ff]/30'
                 : hasValidationFailed
@@ -232,6 +240,14 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
             )}
           </div>
 
+          {/* Checking Status Banner */}
+          {isChecking && (
+            <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-[#f2f4f6] text-[#004ac6] border border-[#c3c6d7]/60 text-[13px] animate-pulse">
+              <span className="material-symbols-outlined text-[18px] animate-spin">sync</span>
+              <span>正在即時解析檔案內容並檢查題目格式與欄位...</span>
+            </div>
+          )}
+
           {/* Validation Failure Report */}
           {hasValidationFailed && validationResult && (
             <div className="rounded-xl border border-[#ffdad6] bg-[#fff8f7] overflow-hidden animate-in fade-in duration-150">
@@ -241,7 +257,7 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
                 </span>
                 <div className="flex flex-col">
                   <span className="text-[14px] font-bold text-[#ba1a1a]">
-                    上傳失敗：試卷內容審查未通過
+                    審查未通過：檔案內容格式有誤
                   </span>
                   <span className="text-[12px] text-[#434655]">
                     {validationResult.fileError
@@ -251,7 +267,7 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
                 </div>
               </div>
 
-              <div className="p-4 max-h-60 overflow-y-auto flex flex-col gap-2.5">
+              <div className="p-4 max-h-52 overflow-y-auto flex flex-col gap-2.5">
                 {validationResult.fileError ? (
                   <div className="p-3 bg-white border border-[#ffdad6] rounded-lg text-[13px] text-[#ba1a1a] flex items-start gap-2">
                     <span className="material-symbols-outlined text-[18px] shrink-0 mt-0.5">
@@ -293,50 +309,114 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
             </div>
           )}
 
-          {/* Validation Success Report */}
-          {uploadSucceeded && validationResult && (
-            <div className="rounded-xl border border-[#a5d6a7] bg-[#e8f5e9] px-4 py-3.5 flex items-center justify-between gap-3 animate-in fade-in duration-150">
-              <div className="flex items-center gap-3">
-                <span className="w-8 h-8 rounded-full bg-[#0f9d58] text-white flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-[20px]">check_circle</span>
-                </span>
-                <div className="flex flex-col">
-                  <span className="text-[14px] font-bold text-[#1b5e20]">
-                    上傳成功！所有欄位皆已通過完整性審查
+          {/* Validation Success & Collapsible Question Preview */}
+          {!hasValidationFailed && validationResult && validationResult.isValid && validationResult.questions.length > 0 && (
+            <div className="rounded-xl border border-[#b4c5ff] bg-[#f8f9ff] p-3.5 flex flex-col gap-3 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-7 h-7 rounded-full bg-[#004ac6] text-white flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-[17px]">check</span>
                   </span>
-                  <span className="text-[12px] text-[#2e7d32]">
-                    已成功匯入 {validationResult.questions.length} 筆完整試題至題庫中。
-                  </span>
+                  <div>
+                    <span className="text-[13px] font-bold text-[#004ac6]">
+                      檔案審查通過！成功讀取 {validationResult.questions.length} 筆題目
+                    </span>
+                    <div className="text-[11px] text-[#434655] flex items-center gap-2 mt-0.5">
+                      <span>單選題 {validationResult.questions.filter(q => q.type === 'single').length} 題</span>
+                      <span>•</span>
+                      <span>多選題 {validationResult.questions.filter(q => q.type === 'multiple').length} 題</span>
+                      <span>•</span>
+                      <span>是非題 {validationResult.questions.filter(q => q.type === 'true_false').length} 題</span>
+                    </div>
+                  </div>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsPreviewExpanded(!isPreviewExpanded)}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white hover:bg-[#e8edff] text-[#004ac6] border border-[#b4c5ff] text-[12px] font-semibold transition-colors cursor-pointer shadow-2xs"
+                >
+                  <span className="material-symbols-outlined text-[16px]">
+                    {isPreviewExpanded ? 'expand_less' : 'visibility'}
+                  </span>
+                  <span>{isPreviewExpanded ? '收合題目預覽' : '展開題目預覽'}</span>
+                </button>
               </div>
+
+              {/* Collapsible Questions List */}
+              {isPreviewExpanded && (
+                <div className="mt-1 max-h-56 overflow-y-auto space-y-2 pr-1 border-t border-[#b4c5ff]/40 pt-2.5 animate-in fade-in duration-150">
+                  {validationResult.questions.map((q, idx) => (
+                    <div
+                      key={q.id || idx}
+                      className="bg-white p-3 rounded-lg border border-[#c3c6d7]/40 shadow-2xs flex flex-col gap-1.5 text-[12px]"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="w-5 h-5 rounded-full bg-[#e8edff] text-[#004ac6] font-mono font-bold flex items-center justify-center text-[10px]">
+                            {idx + 1}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            q.type === 'single'
+                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                              : q.type === 'multiple'
+                              ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}>
+                            {q.type === 'single' ? '單選題' : q.type === 'multiple' ? '多選題' : '是非題'}
+                          </span>
+                          <span className="text-[#434655] font-mono text-[11px]">{q.points} 分</span>
+                        </div>
+                        <span className="px-2 py-0.5 rounded bg-[#e6f4ea] text-[#137333] font-bold font-mono text-[11px]">
+                          答案: {q.correctAnswer}
+                        </span>
+                      </div>
+                      <p className="text-[#191c1e] font-medium line-clamp-2 pl-7">
+                        {q.content}
+                      </p>
+                      {q.options && q.options.length > 0 && (
+                        <div className="pl-7 grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] text-[#434655]">
+                          {q.options.map((opt, oIdx) => (
+                            <span key={oIdx} className="truncate">
+                              {String.fromCharCode(65 + oIdx)}. {opt}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
-          {/* Modal Footer */}
-          <div className="pt-3 border-t border-[#c3c6d7]/30 flex items-center justify-end gap-3">
+          {/* Modal Footer: 取消、批次上傳、批次上傳並生成試卷 */}
+          <div className="pt-3 border-t border-[#c3c6d7]/30 flex items-center justify-end gap-2.5 flex-wrap">
             <button
               type="button"
               onClick={onClose}
               className="px-4 py-2 bg-[#eceef0] text-[#191c1e] rounded-lg hover:bg-[#e0e3e5] text-[13px] font-medium transition-colors cursor-pointer"
             >
-              {uploadSucceeded ? '關閉視窗' : '取消'}
+              取消
             </button>
-            {!uploadSucceeded && (
-              <button
-                type="submit"
-                disabled={!selectedFile || isChecking}
-                className="px-5 py-2 bg-[#004ac6] text-white rounded-lg hover:bg-[#2563eb] disabled:opacity-40 disabled:cursor-not-allowed text-[13px] font-semibold shadow-sm transition-colors cursor-pointer flex items-center gap-1.5"
-              >
-                <span
-                  className={`material-symbols-outlined text-[18px] ${
-                    isChecking ? 'animate-spin' : ''
-                  }`}
-                >
-                  {isChecking ? 'sync' : 'upload'}
-                </span>
-                <span>{isChecking ? '審查檔案中...' : '上傳試卷'}</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => handlePerformUpload(false)}
+              disabled={!selectedFile || isChecking || hasValidationFailed || !validationResult?.isValid}
+              className="px-4 py-2 bg-white hover:bg-[#e8edff] text-[#004ac6] border border-[#004ac6] disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-[13px] font-semibold transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+            >
+              <span className="material-symbols-outlined text-[18px]">upload</span>
+              <span>批次上傳</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handlePerformUpload(true)}
+              disabled={!selectedFile || isChecking || hasValidationFailed || !validationResult?.isValid}
+              className="px-4.5 py-2 bg-[#004ac6] hover:bg-[#003ea8] text-white disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-[13px] font-bold shadow-sm transition-colors cursor-pointer flex items-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-[18px]">post_add</span>
+              <span>批次上傳並生成試卷</span>
+            </button>
           </div>
         </form>
       </div>
