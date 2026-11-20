@@ -11,8 +11,10 @@ import { QuestionPickerList } from '@/app/(dashboard)/selector/_components/Quest
 import { AssemblySummaryBar } from '@/app/(dashboard)/selector/_components/AssemblySummaryBar';
 import { SheetBindGuardModal } from '@/components/common/SheetBindGuardModal';
 import { ExamGenerationModal } from '@/app/(dashboard)/exams/_components/ExamFormModal';
+import { QuestionDetailModal } from '@/app/(dashboard)/questions/_components/QuestionDetailModal';
 import { ensurePersonalSpreadsheetTablesExist, appendExamToUserSheet } from '@/services/userSheet';
 import { getAccessToken, googleSignIn } from '@/services/googleAuth';
+import { verifyUserSessionActive } from '@/services/publicSheet';
 
 interface QuestionSelectorPageProps {
   questions?: Question[];
@@ -98,6 +100,16 @@ export default function QuestionSelectorPage({
   const currentQuestions = source === 'public' ? publicQuestions : personalQuestions;
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isExamModalOpen, setIsExamModalOpen] = useState(false);
+  const [previewQuestion, setPreviewQuestion] = useState<Question | null>(null);
+
+  const handleToggleSelectAll = (filteredIds: string[]) => {
+    const allSelected = filteredIds.every((id) => selectedIds.includes(id));
+    if (allSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !filteredIds.includes(id)));
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...filteredIds])));
+    }
+  };
 
   const handleGoToPublicExams = () => {
     setIsGuardModalOpen(false);
@@ -167,6 +179,16 @@ export default function QuestionSelectorPage({
 
     // 2. 寫入個人 Google 試算表 (quiz_bank_publish 或 quiz_bank_unpublish)
     if (user?.google_sheet_URL) {
+      if (user.identifier && user.current_session_id) {
+        const sessionCheck = await verifyUserSessionActive(user.identifier, user.current_session_id);
+        if (!sessionCheck.isValid) {
+          alert('⚠️ 偵測到您的帳號已於其他裝置登入！\n為避免資料覆蓋，已取消寫入個人 Google 試算表。\n試卷已安全暫存於此瀏覽器本地。');
+          onExamCreatedProp?.(personalExam);
+          setSelectedIds([]);
+          return;
+        }
+      }
+
       try {
         let token = await getAccessToken();
         if (!token) {
@@ -305,6 +327,16 @@ export default function QuestionSelectorPage({
           questions={currentQuestions}
           selectedIds={selectedIds}
           onToggleQuestion={handleToggle}
+          onToggleSelectAll={handleToggleSelectAll}
+          onPreview={(q) => setPreviewQuestion(q)}
+        />
+      )}
+      {/* 題目詳情預覽彈窗 */}
+      {previewQuestion && (
+        <QuestionDetailModal
+          question={previewQuestion}
+          onClose={() => setPreviewQuestion(null)}
+          onEdit={() => {}}
         />
       )}
       {/* 自組考卷生成彈窗 */}

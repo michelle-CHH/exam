@@ -32,6 +32,25 @@ export function ExportActions({ items, title }: { items: ReviewQuestion[]; title
         window.alert('尚未綁定個人 Google Sheet，無法匯出儲存至雲端試算表。請先至設定頁面進行綁定！');
         return;
       }
+
+      // 檢查 Session 是否被其他裝置取代
+      let userObj: any = null;
+      try {
+        const raw = sessionStorage.getItem('exam_logged_in_user');
+        if (raw) userObj = JSON.parse(raw);
+      } catch {}
+
+      if (userObj?.identifier && userObj?.current_session_id) {
+        const { verifyUserSessionActive } = await import('@/services/publicSheet');
+        const sessionCheck = await verifyUserSessionActive(userObj.identifier, userObj.current_session_id);
+        if (!sessionCheck.isValid) {
+          window.alert(
+            '⚠️ 偵測到您的帳號已於其他裝置登入！\n為保護個人試算表資料安全，已暫停寫入個人 Google Sheet。\n\n💡 請放心，您的作答結果與錯題紀錄完整保存在此，您可直接點擊【下載錯題 Excel (.xlsx)】將檔案儲存至電腦！'
+          );
+          setMessage('帳號已於其他裝置登入，已停用雲端匯出；建議直接下載 Excel 檔案保存。');
+          return;
+        }
+      }
     }
 
     setBusy(true);

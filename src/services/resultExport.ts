@@ -18,20 +18,27 @@ export const REVIEW_NOTEBOOK_HEADERS = [
   'explanation',
 ];
 
-export function resultExportRows(items: ReviewQuestion[]): (string | number)[][] {
+export function resultExportRows(items: ReviewQuestion[], submittedAt?: number): (string | number)[][] {
+  const hasTime = submittedAt !== undefined;
+  const header = ['題號', '題目 ID', '學科', '難度', '題目', '選項', '考生答案', '正確答案', '作答結果', '配分', '得分', '解析'];
+  if (hasTime) header.push('交卷時間');
   return [
-    ['題號', '題目 ID', '學科', '難度', '題目', '選項', '考生答案', '正確答案', '作答結果', '配分', '得分', '解析'],
-    ...items.map((item) => [
-      item.number, item.question.id, subjectName(item.question), difficultyName(item.question),
-      item.question.prompt, item.question.options.map((option) => `${option.id}. ${option.text}`).join('\n'),
-      item.actual.join(', ') || '未作答', item.expected.join(', ') || '未提供', statusLabels[item.status],
-      item.question.points, item.earned, item.question.explanation || '尚未提供解析',
-    ]),
+    header,
+    ...items.map((item) => {
+      const row: (string | number)[] = [
+        item.number, item.question.id, subjectName(item.question), difficultyName(item.question),
+        item.question.prompt, item.question.options.map((option) => `${option.id}. ${option.text}`).join('\n'),
+        item.actual.join(', ') || '未作答', item.expected.join(', ') || '未提供', statusLabels[item.status],
+        item.question.points, item.earned, item.question.explanation || '尚未提供解析',
+      ];
+      if (hasTime) row.push(submittedAt);
+      return row;
+    }),
   ];
 }
 
-export function resultExcelCells(items: ReviewQuestion[]): SheetData {
-  return resultExportRows(items).map((row, index) => row.map((value) => ({
+export function resultExcelCells(items: ReviewQuestion[], submittedAt?: number): SheetData {
+  return resultExportRows(items, submittedAt).map((row, index) => row.map((value) => ({
     value,
     type: typeof value === 'number' ? Number : String,
     wrap: true,
@@ -39,17 +46,24 @@ export function resultExcelCells(items: ReviewQuestion[]): SheetData {
   })));
 }
 
-export async function createWrongQuestionsFile(items: ReviewQuestion[]): Promise<Blob> {
+export async function createWrongQuestionsFile(items: ReviewQuestion[], submittedAt?: number): Promise<Blob> {
   const { default: writeXlsxFile } = await import('write-excel-file/browser');
-  return writeXlsxFile(resultExcelCells(items), {
+  const rows = resultExportRows(items, submittedAt);
+  const cells: SheetData = rows.map((row, index) => row.map((value) => ({
+    value,
+    type: typeof value === 'number' ? Number : String,
+    wrap: true,
+    ...(index === 0 ? { fontWeight: 'bold', color: '#ffffff', backgroundColor: '#2f5597' } : {}),
+  })));
+  return writeXlsxFile(cells, {
     sheet: '錯題檢討',
     stickyRowsCount: 1,
-    columns: resultExportRows([])[0].map((_, index) => ({ width: [4, 5, 11].includes(index) ? 52 : 16 })),
+    columns: rows[0].map((_, index) => ({ width: [4, 5, 11].includes(index) ? 52 : 16 })),
   }).toBlob();
 }
 
-export async function downloadWrongQuestions(items: ReviewQuestion[], title: string): Promise<void> {
-  const blob = await createWrongQuestionsFile(items);
+export async function downloadWrongQuestions(items: ReviewQuestion[], title: string, submittedAt?: number): Promise<void> {
+  const blob = await createWrongQuestionsFile(items, submittedAt ?? Date.now());
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;

@@ -11,6 +11,7 @@ interface ExamGenerationModalProps {
   onExamCreated: (newExam: ExamPaper) => void;
   targetLabel?: string;
   idPrefix?: string;
+  mode?: 'create' | 'retest';
 }
 
 export const ExamGenerationModal: React.FC<ExamGenerationModalProps> = ({
@@ -20,6 +21,7 @@ export const ExamGenerationModal: React.FC<ExamGenerationModalProps> = ({
   onExamCreated,
   targetLabel,
   idPrefix,
+  mode = 'create',
 }) => {
   const [step, setStep] = useState<'form' | 'success'>('form');
   const [examTitle, setExamTitle] = useState('');
@@ -118,6 +120,10 @@ export const ExamGenerationModal: React.FC<ExamGenerationModalProps> = ({
       questionIds: selectedQuestions.map((q) => q.id),
     };
     onExamCreated(newExam);
+    if (mode === 'retest') {
+      onClose();
+      return;
+    }
     setStep('success');
   };
 
@@ -143,7 +149,9 @@ export const ExamGenerationModal: React.FC<ExamGenerationModalProps> = ({
                 <span className="material-symbols-outlined text-[20px]">assignment_add</span>
               </span>
               <div>
-                <h2 className="text-[18px] text-[#191c1e] font-bold">快速生成考卷</h2>
+                <h2 className="text-[18px] text-[#191c1e] font-bold">
+                  {mode === 'retest' ? '錯題重測試卷設定' : '快速生成考卷'}
+                </h2>
                 <p className="text-[11px] text-[#004ac6] font-semibold">
                   已選 {selectedQuestions.length} 題 / 題庫配分總計 {totalPoints} 分 / 時長總計 {calculatedDuration} 分鐘 / 平均難度 {calculatedDifficulty}
                 </p>
@@ -255,55 +263,57 @@ export const ExamGenerationModal: React.FC<ExamGenerationModalProps> = ({
                 </div>
               </div>
 
-              {/* 試卷狀態與資料表歸屬 */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[12px] text-[#191c1e] font-semibold">
-                  試卷狀態與資料表歸屬
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <label
-                    className={`p-2.5 rounded-lg border cursor-pointer flex flex-col gap-1 transition-all ${
-                      status === 'draft'
-                        ? 'border-[#004ac6] bg-[#dbe1ff]/30 text-[#004ac6]'
-                        : 'border-[#c3c6d7]/60 bg-white text-[#434655] hover:bg-[#f2f4f6]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[13px] font-bold">草稿</span>
-                      <input
-                        type="radio"
-                        name="examStatus"
-                        checked={status === 'draft'}
-                        onChange={() => setStatus('draft')}
-                        className="accent-[#004ac6]"
-                      />
-                    </div>
-                    <span className="text-[11px] text-[#565e74] font-medium">寫在草稿資料表</span>
+              {/* 試卷狀態與資料表歸屬 (錯題重測模式下隱藏，不寫入雲端) */}
+              {mode !== 'retest' && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[12px] text-[#191c1e] font-semibold">
+                    試卷狀態與資料表歸屬
                   </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label
+                      className={`p-2.5 rounded-lg border cursor-pointer flex flex-col gap-1 transition-all ${
+                        status === 'draft'
+                          ? 'border-[#004ac6] bg-[#dbe1ff]/30 text-[#004ac6]'
+                          : 'border-[#c3c6d7]/60 bg-white text-[#434655] hover:bg-[#f2f4f6]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[13px] font-bold">草稿</span>
+                        <input
+                          type="radio"
+                          name="examStatus"
+                          checked={status === 'draft'}
+                          onChange={() => setStatus('draft')}
+                          className="accent-[#004ac6]"
+                        />
+                      </div>
+                      <span className="text-[11px] text-[#565e74] font-medium">寫在草稿資料表</span>
+                    </label>
 
-                  <label
-                    className={`p-2.5 rounded-lg border cursor-pointer flex flex-col gap-1 transition-all ${
-                      status === 'published'
-                        ? 'border-[#137333] bg-[#e6f4ea] text-[#137333]'
-                        : 'border-[#c3c6d7]/60 bg-white text-[#434655] hover:bg-[#f2f4f6]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[13px] font-bold">正式發布</span>
-                      <input
-                        type="radio"
-                        name="examStatus"
-                        checked={status === 'published'}
-                        onChange={() => setStatus('published')}
-                        className="accent-[#137333]"
-                      />
-                    </div>
-                    <span className="text-[11px] text-[#565e74] font-medium">
-                      寫入{targetLabel || '公用試卷資料表'}
-                    </span>
-                  </label>
+                    <label
+                      className={`p-2.5 rounded-lg border cursor-pointer flex flex-col gap-1 transition-all ${
+                        status === 'published'
+                          ? 'border-[#137333] bg-[#e6f4ea] text-[#137333]'
+                          : 'border-[#c3c6d7]/60 bg-white text-[#434655] hover:bg-[#f2f4f6]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[13px] font-bold">正式發布</span>
+                        <input
+                          type="radio"
+                          name="examStatus"
+                          checked={status === 'published'}
+                          onChange={() => setStatus('published')}
+                          className="accent-[#137333]"
+                        />
+                      </div>
+                      <span className="text-[11px] text-[#565e74] font-medium">
+                        寫入{targetLabel || '公用試卷資料表'}
+                      </span>
+                    </label>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-2 border-t border-[#c3c6d7]/20 shrink-0">
@@ -318,8 +328,10 @@ export const ExamGenerationModal: React.FC<ExamGenerationModalProps> = ({
                 type="submit"
                 className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-[#004ac6] hover:bg-[#2563eb] text-white text-[13px] font-semibold shadow-sm transition-colors cursor-pointer"
               >
-                <span className="material-symbols-outlined text-[18px]">verified</span>
-                <span>確認建立考卷</span>
+                <span className="material-symbols-outlined text-[18px]">
+                  {mode === 'retest' ? 'play_arrow' : 'verified'}
+                </span>
+                <span>{mode === 'retest' ? '開始考試' : '確認建立考卷'}</span>
               </button>
             </div>
           </form>

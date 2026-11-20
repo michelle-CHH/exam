@@ -23,7 +23,11 @@ export function QuestionDisplay({ question, number, answer, flagged, onAnswer, o
 
   function select(optionId: string) {
     if (!multiple) {
-      onAnswer(optionId);
+      if (selected.includes(optionId)) {
+        onAnswer("");
+      } else {
+        onAnswer(optionId);
+      }
       return;
     }
     const next = selected.includes(optionId)
@@ -44,14 +48,24 @@ export function QuestionDisplay({ question, number, answer, flagged, onAnswer, o
         </span>
         <span className="exam-chip">{TYPE_LABELS[question.type]}</span>
         <span className="exam-chip">{question.points} 分</span>
-        <button
-          type="button"
-          onClick={onToggleFlag}
-          aria-pressed={flagged}
-          className={`exam-chip ml-auto ${flagged ? "exam-chip-flag" : ""}`}
-        >
-          {flagged ? "★ 已標註" : "☆ 標註"}
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onAnswer(multiple ? [] : "")}
+            disabled={selected.length === 0}
+            className="exam-chip hover:bg-[#eef2f6] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          >
+            清除選項
+          </button>
+          <button
+            type="button"
+            onClick={onToggleFlag}
+            aria-pressed={flagged}
+            className={`exam-chip ${flagged ? "exam-chip-flag" : ""}`}
+          >
+            {flagged ? "★ 已標註" : "☆ 標註"}
+          </button>
+        </div>
       </div>
 
       <p id={`question-${question.id}-prompt`} className="mb-3 text-[15px] leading-7">

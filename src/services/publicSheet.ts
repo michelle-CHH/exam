@@ -155,6 +155,7 @@ export const DATABASE_TABLE_SCHEMAS: Record<string, SheetTableSchema> = {
       { key: 'last_login_at', label: 'last_login_at', desc: '最後登入時間' },
       { key: 'created_at', label: 'created_at', desc: '帳號建立時間' },
       { key: 'updated_at', label: 'updated_at', desc: '帳號資料更新時間' },
+      { key: 'current_session_id', label: 'current_session_id', desc: '目前有效登入 Session 識別碼' },
     ],
   },
   roles: {
@@ -1131,6 +1132,7 @@ export function parseUsersFromSheetRows(
   const idxLastLogin = findIdx(['last_login_at'], 8);
   const idxCreatedAt = findIdx(['created_at'], 9);
   const idxUpdatedAt = findIdx(['updated_at'], 10);
+  const idxSessionId = findIdx(['current_session_id', 'session_id', 'session_token'], 11);
 
   const users: UserProfile[] = [];
   for (let i = 0; i < userRows.length; i++) {
@@ -1185,6 +1187,7 @@ export function parseUsersFromSheetRows(
       last_login_at: String(row[idxLastLogin] ?? '').trim() || undefined,
       created_at: String(row[idxCreatedAt] ?? '').trim() || undefined,
       updated_at: String(row[idxUpdatedAt] ?? '').trim() || undefined,
+      current_session_id: String(row[idxSessionId] ?? '').trim() || undefined,
     });
   }
 
@@ -1442,12 +1445,21 @@ export async function authenticateUserFromSheet(
       description: matchedUser.roleDescription || '',
     };
 
+  const newSessionId = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const authenticatedUser: UserProfile = {
     ...matchedUser,
     roleName: roleInfo.name,
     roleDescription: roleInfo.description,
     last_login_at: formatSheetTimestamp(),
+    current_session_id: newSessionId,
   };
+
+  // 嘗試非同步更新雲端 users 表的 session 記錄，不阻擋登入
+  if (spreadsheetId) {
+    updateUserInSpreadsheet(accessToken, spreadsheetId, authenticatedUser).catch((err) => {
+      console.warn('非同步更新 session_id 失敗 (不影響登入):', err);
+    });
+  }
 
   return {
     success: true,
@@ -1687,6 +1699,7 @@ export async function updateUserInSpreadsheet(
     user.last_login_at || '',
     user.created_at || nowStr,
     nowStr,
+    user.current_session_id || '',
   ];
 
   const scriptUrl = getEnvConfiguredScriptUrl();
@@ -2083,5 +2096,50 @@ export async function appendLogToSpreadsheet(
     message: `日誌 [${logEntry.id}] 已寫入 Google 試算表 log 分頁！`,
   };
 }
+
+/**
+ * 輕量檢核使用者之 Session 是否仍為最新登入（防止同帳號多開/互踢機制）
+ * 僅在牽涉個人 Google Sheet 讀寫前檢驗，避免不必要的額度耗損
+ */
+export async function verifyUserSessionActive(
+  identifierOrUuid: string,
+  localSessionId?: string,
+  spreadsheetId?: string
+): Promise<{ isValid: boolean; reason?: string }> {
+  if (!identifierOrUuid || !localSessionId) {
+    return { isValid: true };
+  }
+
+  const sid = spreadsheetId || extractSpreadsheetId(getEnvConfiguredSpreadsheetUrl());
+  if (!sid) {
+    return { isValid: true };
+  }
+
+  try {
+    const { users } = await fetchUsersAndRolesFromSheet(sid, null);
+    const remoteUser = users.find(
+      (u) =>
+        (u.identifier && u.identifier.toLowerCase() === identifierOrUuid.toLowerCase()) ||
+        (u.uuid && u.uuid.toLowerCase() === identifierOrUuid.toLowerCase())
+    );
+
+    if (!remoteUser) {
+      return { isValid: true };
+    }
+
+    if (remoteUser.current_session_id && remoteUser.current_session_id !== localSessionId) {
+      return {
+        isValid: false,
+        reason: '您的帳號已於其他裝置登入，個人 Google Sheet 同步權限已被取代。',
+      };
+    }
+
+    return { isValid: true };
+  } catch {
+    // 網路暫態或離線時避免誤擋，放行本地操作
+    return { isValid: true };
+  }
+}
+
 
 

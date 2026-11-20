@@ -276,7 +276,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   }
                   className="flex-1 py-2.5 px-4 rounded-xl bg-[#004ac6] text-white text-[14px] font-bold hover:bg-[#003ea8] shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <span>進入系統後台</span>
+                  <span>登入</span>
                   <span className="material-symbols-outlined text-[18px]">
                     arrow_forward
                   </span>

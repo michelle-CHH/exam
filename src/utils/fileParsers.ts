@@ -662,6 +662,7 @@ export async function parseWrongQuestionsExcel(file: File): Promise<{
     correctAnswer: string;
     explanation: string;
     status: string;
+    submittedAt?: number;
   }[];
 }> {
   const ext = file.name.split('.').pop()?.toLowerCase() || '';
@@ -686,8 +687,14 @@ export async function parseWrongQuestionsExcel(file: File): Promise<{
   const findCol = (names: string[]) =>
     header.findIndex((h) => names.some((n) => h.includes(n.toLowerCase())));
 
-  const qIdIdx = findCol(['題目 id', '題目id', 'id', 'test_id']);
-  const promptIdx = findCol(['題目', '題幹', 'content', 'question', 'prompt']);
+  const qIdIdx = findCol(['題目 id', '題目id', 'question_id', 'question id', 'qid', 'test_id', 'id']);
+  const promptIdx = header.findIndex(
+    (h) =>
+      (h === '題目' || h.includes('題幹') || h.includes('content') || h.includes('question') || h.includes('prompt')) &&
+      !h.includes('id') &&
+      !h.includes('編號') &&
+      !h.includes('題號')
+  );
   const optIdx = findCol(['選項', 'options', 'option']);
   const actualIdx = findCol(['考生答案', '你的答案', '作答答案', 'useranswer', 'actual']);
   const expIdx = findCol(['正確答案', '解答', 'answer', 'expected']);
@@ -696,6 +703,7 @@ export async function parseWrongQuestionsExcel(file: File): Promise<{
   const subjectIdx = findCol(['學科', '科目', 'subject']);
   const diffIdx = findCol(['難度', 'difficulty']);
   const pointsIdx = findCol(['配分', 'points', 'score']);
+  const submitTimeIdx = findCol(['交卷時間', '交卷', '作答時間', '測驗時間', 'submittedat', 'timestamp', 'time']);
 
   if (promptIdx === -1 && optIdx === -1) {
     const fallback = await validateAndParseExamFile(file);
@@ -723,6 +731,7 @@ export async function parseWrongQuestionsExcel(file: File): Promise<{
     correctAnswer: string;
     explanation: string;
     status: string;
+    submittedAt?: number;
   }[] = [];
 
   for (let i = 1; i < rows.length; i++) {
@@ -738,6 +747,10 @@ export async function parseWrongQuestionsExcel(file: File): Promise<{
     const status = (statusIdx !== -1 && r[statusIdx]?.trim()) || '錯誤';
     const rawSub = (subjectIdx !== -1 && r[subjectIdx]?.trim()) || 'math';
     const subId = SUBJECT_PARSE_MAP[rawSub] || 'math';
+    const rawTime = (submitTimeIdx !== -1 && r[submitTimeIdx]?.trim()) || '';
+    const parsedTs = rawTime
+      ? (!isNaN(Number(rawTime)) && Number(rawTime) > 0 ? Number(rawTime) : Date.parse(rawTime) || Date.now())
+      : Date.now();
 
     let options: string[] = [];
     if (optRaw.startsWith('[') && optRaw.endsWith(']')) {
@@ -776,6 +789,7 @@ export async function parseWrongQuestionsExcel(file: File): Promise<{
       correctAnswer: expected,
       explanation,
       status,
+      submittedAt: parsedTs,
     });
   }
 

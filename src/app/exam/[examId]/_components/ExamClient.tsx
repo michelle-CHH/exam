@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { countAnswered, countFlagged, getUnansweredNumbers } from "@/utils/scoreCalculator";
 import { useExamSession } from "@/contexts/ExamSessionContext";
 import type { Exam } from "@/types/exam";
+import { clearSession } from "@/contexts/examStorage";
 import { ExamHeader } from "@/app/exam/[examId]/_components/ExamHeader";
 import { PauseOverlay } from "@/app/exam/[examId]/_components/PauseOverlay";
 import { QuestionDisplay as QuestionCard } from "@/app/exam/[examId]/_components/QuestionDisplay";
@@ -41,6 +42,14 @@ export function ExamClient({ exam, onExit }: { exam: Exam; onExit?: () => void }
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      clearSession(exam.id);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [exam.id]);
 
   useEffect(() => {
     if (!ready || restoredRef.current) return;
@@ -118,6 +127,9 @@ export function ExamClient({ exam, onExit }: { exam: Exam; onExit?: () => void }
           answered={answered}
           total={total}
           running={state.status === "running"}
+          current={current}
+          onPrev={() => navigate(current - 1)}
+          onNext={() => navigate(current + 1)}
           onPause={actions.pause}
           onSubmit={() => setSubmitOpen(true)}
         />
@@ -149,25 +161,6 @@ export function ExamClient({ exam, onExit }: { exam: Exam; onExit?: () => void }
                 />
               </div>
             ))}
-
-            <div className="flex gap-2 pb-6">
-              <button
-                type="button"
-                onClick={() => navigate(current - 1)}
-                disabled={current <= 0}
-                className="exam-btn flex-1 py-2"
-              >
-                上一題
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate(current + 1)}
-                disabled={current >= total - 1}
-                className="exam-btn flex-1 py-2"
-              >
-                下一題
-              </button>
-            </div>
           </main>
 
           <aside className="hidden md:block">

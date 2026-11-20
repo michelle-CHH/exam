@@ -22,6 +22,7 @@ export interface UserProfile {
   credential?: string; // 密碼
   google_sheet_URL?: string; // 使用者資料庫
   last_login_at?: string; // 最後登入時間
+  current_session_id?: string; // 目前有效登入 Session 識別碼（單一裝置互踢）
   created_at?: string; // 帳號建立時間
   updated_at?: string; // 帳號資料更新時間
 }

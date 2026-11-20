@@ -1,13 +1,15 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import type { UserProfile, Question, Exam, SubjectId } from '@/types';
+import type { UserProfile, Question, Exam, SubjectId, ExamPaper } from '@/types';
 import { ImportUploader } from '@/app/(dashboard)/wrong-questions/_components/ImportUploader';
 import { RetestActionCard } from '@/app/(dashboard)/wrong-questions/_components/RetestActionCard';
+import { ExamGenerationModal } from '@/app/(dashboard)/exams/_components/ExamFormModal';
 import { parseWrongQuestionsExcel } from '@/utils/fileParsers';
 import { fetchWrongQuestionsFromUserSheet, WrongQuestionRecord } from '@/services/userSheet';
 import { getAccessToken, googleSignIn } from '@/services/googleAuth';
 import { formatSheetTimestamp } from '@/utils/formatters';
+import { verifyUserSessionActive } from '@/services/publicSheet';
 
 export interface StoredWrongRecord {
   id: string;
@@ -22,7 +24,22 @@ export interface StoredWrongRecord {
   subjectId: string;
   difficulty: 'easy' | 'medium' | 'hard';
   points: number;
+  submittedAt: number;
   submitTime?: string;
+}
+
+export function formatSubmittedAt(ts?: number | string): string {
+  if (!ts) return '未記錄';
+  const num = typeof ts === 'number' ? ts : Number(ts);
+  if (!isNaN(num) && num > 0) {
+    const d = new Date(num);
+    return isNaN(d.getTime()) ? String(ts) : d.toLocaleString();
+  }
+  const parsed = Date.parse(String(ts));
+  if (!isNaN(parsed)) {
+    return new Date(parsed).toLocaleString();
+  }
+  return String(ts);
 }
 
 interface WrongQuestionsPageProps {
@@ -39,6 +56,7 @@ export default function WrongQuestionsPage({
   const [records, setRecords] = useState<StoredWrongRecord[]>([]);
   const [importMessage, setImportMessage] = useState<string>('');
   const [isLoadingSheet, setIsLoadingSheet] = useState(false);
+  const [isRetestModalOpen, setIsRetestModalOpen] = useState(false);
 
   // 篩選狀態
   const [filter, setFilter] = useState<'all' | 'wrong' | 'unanswered'>('all');
@@ -61,7 +79,13 @@ export default function WrongQuestionsPage({
     try {
       const savedNew = localStorage.getItem('quiz_wrong_records_book');
       if (savedNew) {
-        setRecords(JSON.parse(savedNew));
+        const loaded: StoredWrongRecord[] = JSON.parse(savedNew).map((r: any) => ({
+          ...r,
+          submittedAt: typeof r.submittedAt === 'number' && r.submittedAt > 0
+            ? r.submittedAt
+            : (Date.parse(String(r.submitTime || r.submittedAt)) || Date.now()),
+        }));
+        setRecords(loaded);
         return;
       }
       // 兼容舊格式
@@ -91,6 +115,7 @@ export default function WrongQuestionsPage({
             subjectId: q.subjectId || 'math',
             difficulty: (q.difficulty as any) || 'medium',
             points: q.points || 5,
+            submittedAt: Date.now(),
           };
         });
         setRecords(converted);
@@ -163,6 +188,9 @@ export default function WrongQuestionsPage({
         const subName =
           rawSub === 'chinese' ? '國文' : rawSub === 'english' ? '英文' : rawSub === 'math' ? '數學' : '綜合';
 
+        const rawTime = wr.submittedAt;
+        const parsedTime = typeof rawTime === 'number' && rawTime > 0 ? rawTime : Date.now();
+
         return {
           id: wr.questionId || `W-EXCEL-${idx + 1}`,
           questionId: wr.questionId || `W-EXCEL-${idx + 1}`,
@@ -176,6 +204,7 @@ export default function WrongQuestionsPage({
           subjectId: rawSub,
           difficulty: (matchedQ?.difficulty as any) || 'medium',
           points: matchedQ?.points || 5,
+          submittedAt: parsedTime,
         };
       });
 
@@ -200,6 +229,15 @@ export default function WrongQuestionsPage({
       return;
     }
 
+    if (user.identifier && user.current_session_id) {
+      const sessionCheck = await verifyUserSessionActive(user.identifier, user.current_session_id);
+      if (!sessionCheck.isValid) {
+        alert('⚠️ 您的帳號已於其他裝置登入，無法同步讀取個人 Google 試算表。');
+        setImportMessage('您的帳號已於其他裝置登入，同步已暫停。');
+        return;
+      }
+    }
+
     setIsLoadingSheet(true);
     setImportMessage('正在連線個人 Google 試算表讀取 Review notebook 分頁…');
     try {
@@ -222,26 +260,34 @@ export default function WrongQuestionsPage({
         return;
       }
 
-      const newItems: StoredWrongRecord[] = sheetRecords.map((sr) => ({
-        id: sr.questionId,
-        questionId: sr.questionId,
-        prompt: sr.prompt,
-        options: sr.options,
-        userAnswer: sr.actual.join(', ') || '未作答',
-        correctAnswer: sr.expected.join(','),
-        explanation: sr.explanation,
-        status: sr.status,
-        subject: sr.subject,
-        subjectId:
-          sr.subject.includes('國') ? 'chinese' :
-          sr.subject.includes('英') ? 'english' :
-          sr.subject.includes('數') ? 'math' : 'math',
-        difficulty:
-          sr.difficulty.includes('難') ? 'hard' :
-          sr.difficulty.includes('易') || sr.difficulty.includes('簡') ? 'easy' : 'medium',
-        points: 5,
-        submitTime: sr.submitTime,
-      }));
+      const newItems: StoredWrongRecord[] = sheetRecords.map((sr) => {
+        const rawTime = sr.submitTime;
+        const parsedTime = rawTime
+          ? (!isNaN(Number(rawTime)) && Number(rawTime) > 0 ? Number(rawTime) : Date.parse(rawTime) || Date.now())
+          : Date.now();
+
+        return {
+          id: sr.questionId,
+          questionId: sr.questionId,
+          prompt: sr.prompt,
+          options: sr.options,
+          userAnswer: sr.actual.join(', ') || '未作答',
+          correctAnswer: sr.expected.join(','),
+          explanation: sr.explanation,
+          status: sr.status,
+          subject: sr.subject,
+          subjectId:
+            sr.subject.includes('國') ? 'chinese' :
+            sr.subject.includes('英') ? 'english' :
+            sr.subject.includes('數') ? 'math' : 'math',
+          difficulty:
+            sr.difficulty.includes('難') ? 'hard' :
+            sr.difficulty.includes('易') || sr.difficulty.includes('簡') ? 'easy' : 'medium',
+          points: 5,
+          submittedAt: parsedTime,
+          submitTime: sr.submitTime,
+        };
+      });
 
       const recordMap = new Map<string, StoredWrongRecord>();
       [...newItems, ...records].forEach((r) => recordMap.set(r.questionId, r));
@@ -258,19 +304,38 @@ export default function WrongQuestionsPage({
     }
   };
 
-  // 3. 錯題就地重測（「錯題本本身就是考卷庫」）
+  const retestQuestions: Question[] = useMemo(() => {
+    return records.map((r, idx) => ({
+      id: r.questionId || `retest-q-${idx + 1}`,
+      content: r.prompt,
+      subjectId: (r.subjectId || 'math') as any,
+      difficulty: r.difficulty,
+      difficultyScore: r.difficulty === 'hard' ? 4 : r.difficulty === 'easy' ? 2 : 3,
+      points: r.points || 5,
+      type: (r.correctAnswer.includes(',') ? 'multiple' : 'single') as any,
+      options: r.options.map((o) => `${o.id}. ${o.text}`),
+      correctAnswer: r.correctAnswer,
+      explanation: r.explanation,
+      tags: ['錯題重測'],
+      updatedAt: formatSheetTimestamp(),
+    }));
+  }, [records]);
+
+  // 3. 錯題就地重測（配合試卷生成彈窗，下方的按鈕只有取消跟開始考試兩項）
   const handleStartRetest = () => {
     if (records.length === 0) {
       alert('目前錯題本中尚無試題，請先上傳成果匯出的錯題 Excel 檔或從 Google Sheets 匯入！');
       return;
     }
+    setIsRetestModalOpen(true);
+  };
 
-    const newId = `RETEST-${Date.now().toString().slice(-6)}`;
+  const handleConfirmRetestExam = (newPaper: ExamPaper) => {
     const retestExam: Exam = {
-      id: newId,
-      title: `錯題二次重測練習卷 (${records.length} 題)`,
-      subtitle: `由錯題本自動生成之弱點專屬測驗`,
-      durationSec: Math.max(600, records.length * 120),
+      id: newPaper.id,
+      title: newPaper.title,
+      subtitle: newPaper.description || `由錯題本自動生成之弱點專屬測驗`,
+      durationSec: (newPaper.durationMinutes || 10) * 60,
       questions: records.map((r, idx) => ({
         id: r.questionId || `retest-q-${idx + 1}`,
         test_id: r.questionId,
@@ -574,6 +639,11 @@ export default function WrongQuestionsPage({
                         >
                           {item.difficulty === 'hard' ? '困難' : item.difficulty === 'easy' ? '簡單' : '中等'}
                         </span>
+                        {item.submittedAt ? (
+                          <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                            交卷時間：{formatSubmittedAt(item.submittedAt)}
+                          </span>
+                        ) : null}
                       </div>
 
                       <span
@@ -671,6 +741,15 @@ export default function WrongQuestionsPage({
           </div>
         </div>
       )}
+      {/* 錯題重測試卷生成設定彈窗 (mode="retest": 下方僅有取消與開始考試) */}
+      <ExamGenerationModal
+        isOpen={isRetestModalOpen}
+        onClose={() => setIsRetestModalOpen(false)}
+        selectedQuestions={retestQuestions}
+        onExamCreated={handleConfirmRetestExam}
+        idPrefix="RETEST-"
+        mode="retest"
+      />
     </div>
   );
 }
