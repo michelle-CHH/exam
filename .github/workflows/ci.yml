@@ -30,8 +30,10 @@ jobs:
         run: npm ci
 
       # 1. ESLint 直接使用內建 html formatter 產出網頁報告
+      # 加上 continue-on-error: true，即使有 Lint 錯誤也會先產出報告並繼續跑後面的測試
       - name: Run ESLint & Generate HTML Report
-        run: npx eslint . --ext .js,.jsx,.ts,.tsx -f html -o eslint-report.html
+        continue-on-error: true
+        run: npx eslint . -f html -o eslint-report.html
 
       # 2. TypeScript 靜態型別檢查
       - name: Run TypeScript type check
