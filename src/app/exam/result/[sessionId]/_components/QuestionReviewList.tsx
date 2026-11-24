@@ -1,6 +1,7 @@
 'use client';
 
 import { difficultyName, statusLabels, subjectName, type ReviewQuestion } from '@/utils/examReport';
+import { QuestionPrompt } from '@/components/exam/QuestionPrompt';
 
 export function QuestionReviewList({ items }: { items: ReviewQuestion[] }) {
   return (
@@ -14,7 +15,11 @@ export function QuestionReviewList({ items }: { items: ReviewQuestion[] }) {
             <span className={`rounded-full px-3 py-1 text-sm font-semibold ${item.status === 'correct' ? 'bg-emerald-50 text-emerald-800' : item.status === 'wrong' ? 'bg-rose-50 text-rose-800' : 'bg-amber-50 text-amber-900'}`}>{statusLabels[item.status]}</span>
           </div>
           <p className="mt-2 text-xs text-slate-500">{subjectName(item.question)} · {difficultyName(item.question)}</p>
-          <p className="mt-4 whitespace-pre-wrap text-base leading-relaxed text-slate-900">{item.question.prompt}</p>
+          <QuestionPrompt
+            prompt={item.question.prompt}
+            imageUrl={item.question.imageUrl}
+            className="mt-4 text-base leading-relaxed text-slate-900"
+          />
           <ul className="mt-4 grid gap-2 sm:grid-cols-2">
             {item.question.options.map((option) => {
               const cleanText = option.text.replace(/^[A-Za-z0-9][\.\、\:\)\s]+\s*|^\([A-Za-z0-9]\)\s*/, '').trim();

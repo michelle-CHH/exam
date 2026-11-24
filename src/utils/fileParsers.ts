@@ -1,5 +1,10 @@
 import { Question, SubjectId, DifficultyLevel } from '@/types';
 import { formatSheetTimestamp } from '@/utils/formatters';
+import { normalizeGoogleDriveImageUrl } from '@/utils/imageUrl';
+
+export function cleanOptionText(text: string): string {
+  return text.replace(/^[A-Za-z0-9][\.\、\:\)\s]+\s*|^\([A-Za-z0-9]\)\s*/, '').trim();
+}
 
 export interface RowValidationError {
   rowNumber: number; // Excel row number (e.g. 2 for first question)
@@ -377,17 +382,264 @@ const EXPECTED_HEADERS = [
 ];
 
 /**
- * Validate and parse an uploaded exam paper file (.xlsx or .csv)
+ * Parse an uploaded JSON exam paper file
  */
-export async function validateAndParseExamFile(file: File): Promise<ExamUploadValidationResult> {
-  const ext = file.name.split('.').pop()?.toLowerCase() || '';
-  if (!['xlsx', 'csv'].includes(ext)) {
+export async function parseJsonExamFile(file: File): Promise<ExamUploadValidationResult> {
+  let rawText = '';
+  try {
+    rawText = await file.text();
+  } catch (err: any) {
     return {
       isValid: false,
       questions: [],
       rowErrors: [],
-      fileError: `不支援的檔案格式「.${ext}」，請上傳 .xlsx (Excel) 或 .csv 格式的試卷檔案。`,
+      fileError: err?.message || '讀取 JSON 檔案失敗，請確認檔案未損毀。',
     };
+  }
+
+  let parsedData: any;
+  try {
+    parsedData = JSON.parse(rawText);
+  } catch {
+    return {
+      isValid: false,
+      questions: [],
+      rowErrors: [],
+      fileError: 'JSON 格式解析失敗，請確認檔案為合法的 JSON 格式。',
+    };
+  }
+
+  let items: any[] = [];
+  if (Array.isArray(parsedData)) {
+    items = parsedData;
+  } else if (parsedData && typeof parsedData === 'object') {
+    if (Array.isArray(parsedData.questions)) {
+      items = parsedData.questions;
+    } else if (Array.isArray(parsedData.data)) {
+      items = parsedData.data;
+    } else if (Array.isArray(parsedData.items)) {
+      items = parsedData.items;
+    } else {
+      items = [parsedData];
+    }
+  }
+
+  if (items.length === 0) {
+    return {
+      isValid: false,
+      questions: [],
+      rowErrors: [],
+      fileError: 'JSON 檔案內未包含任何試題資料。',
+    };
+  }
+
+  const questions: Question[] = [];
+  const rowErrors: RowValidationError[] = [];
+
+  for (let idx = 0; idx < items.length; idx++) {
+    const item = items[idx];
+    const questionIndex = idx + 1;
+    const rowNumber = idx + 1;
+    const fieldErrors: string[] = [];
+
+    if (!item || typeof item !== 'object') {
+      rowErrors.push({
+        rowNumber,
+        questionIndex,
+        questionPreview: `第 ${questionIndex} 題`,
+        fieldErrors: ['題目資料必須為 JSON 物件'],
+      });
+      continue;
+    }
+
+    const testId = String(item.test_id || item.id || `Q-JSON-${idx + 1}`).trim();
+    const content = String(item.question || item.content || item.prompt || '').trim();
+    const preview = content ? (content.length > 30 ? content.slice(0, 30) + '...' : content) : `第 ${questionIndex} 題`;
+
+    if (!content) {
+      fieldErrors.push('題幹內容不可為空白');
+    }
+
+    // 解析選項
+    const rawOption = item.option || item.options;
+    const optionsMap: Record<string, string> = {};
+    const parsedOptions: string[] = [];
+
+    if (rawOption && typeof rawOption === 'object' && !Array.isArray(rawOption)) {
+      // 形式: { "A": "...", "B": "..." }
+      for (const [key, val] of Object.entries(rawOption)) {
+        const cleanVal = cleanOptionText(String(val || ''));
+        optionsMap[key.toUpperCase()] = cleanVal;
+        parsedOptions.push(cleanVal);
+      }
+    } else if (Array.isArray(rawOption)) {
+      // 形式: ["選項1", "選項2", ...]
+      rawOption.forEach((opt, oIdx) => {
+        const letter = String.fromCharCode(65 + oIdx);
+        const cleanVal = cleanOptionText(String(opt || ''));
+        optionsMap[letter] = cleanVal;
+        parsedOptions.push(cleanVal);
+      });
+    } else if (typeof rawOption === 'string') {
+      try {
+        const optObj = JSON.parse(rawOption);
+        if (typeof optObj === 'object' && !Array.isArray(optObj)) {
+          for (const [key, val] of Object.entries(optObj)) {
+            const cleanVal = cleanOptionText(String(val || ''));
+            optionsMap[key.toUpperCase()] = cleanVal;
+            parsedOptions.push(cleanVal);
+          }
+        } else if (Array.isArray(optObj)) {
+          optObj.forEach((opt, oIdx) => {
+            const letter = String.fromCharCode(65 + oIdx);
+            const cleanVal = cleanOptionText(String(opt || ''));
+            optionsMap[letter] = cleanVal;
+            parsedOptions.push(cleanVal);
+          });
+        }
+      } catch {
+        const lines = rawOption.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+        lines.forEach((l, oIdx) => {
+          const letter = String.fromCharCode(65 + oIdx);
+          const cleanVal = cleanOptionText(l);
+          optionsMap[letter] = cleanVal;
+          parsedOptions.push(cleanVal);
+        });
+      }
+    }
+
+    if (parsedOptions.length < 2) {
+      fieldErrors.push('選項數量不足（至少需提供 2 個選項）');
+    }
+
+    // 正確答案
+    const answer = String(item.answer || item.correctAnswer || item.ans || item.correct_answer || '').trim();
+    if (!answer) {
+      fieldErrors.push('未指定正確答案');
+    }
+
+    // 難度
+    let difficulty: DifficultyLevel = 'medium';
+    let difficultyScore = 3;
+    const diffRaw = item.difficulty ?? item.difficultyScore;
+    if (typeof diffRaw === 'number') {
+      difficultyScore = diffRaw;
+      if (diffRaw >= 4.0) difficulty = 'hard';
+      else if (diffRaw >= 2.5) difficulty = 'medium';
+      else difficulty = 'easy';
+    } else if (typeof diffRaw === 'string') {
+      const lower = diffRaw.toLowerCase().trim();
+      if (lower === 'hard' || lower === '困難') {
+        difficulty = 'hard';
+        difficultyScore = 4;
+      } else if (lower === 'easy' || lower === '簡單') {
+        difficulty = 'easy';
+        difficultyScore = 2;
+      } else {
+        const parsedNum = parseFloat(diffRaw);
+        if (!isNaN(parsedNum)) {
+          difficultyScore = parsedNum;
+          if (parsedNum >= 4.0) difficulty = 'hard';
+          else if (parsedNum >= 2.5) difficulty = 'medium';
+          else difficulty = 'easy';
+        } else {
+          difficulty = 'medium';
+          difficultyScore = 3;
+        }
+      }
+    }
+
+    // 配分
+    const points = Number(item.score ?? item.points ?? 2) || 2;
+
+    // 詳解
+    const explanation = String(item.Explanation || item.explanation || item.desc || '').trim();
+
+    // 分類
+    const categoryId = Number(item.category_id ?? item.categoryId ?? 1) || 1;
+    const subjectId: SubjectId = 'math';
+
+    // 標籤
+    const rawTags = item.taqs ?? item.tags;
+    let tags: string[] = [];
+    if (Array.isArray(rawTags)) {
+      tags = rawTags.map((t) => String(t).trim()).filter(Boolean);
+    } else if (typeof rawTags === 'string') {
+      tags = rawTags.split(/[,，、]/).map((t) => t.trim()).filter(Boolean);
+    }
+
+    // 附圖
+    const rawImageUrl = item.image_url || item.imageUrl || item.img || '';
+    const imageUrl = normalizeGoogleDriveImageUrl(rawImageUrl);
+
+    // 題型判斷
+    let type: 'single' | 'multiple' | 'true_false' = 'single';
+    if (answer.includes(',') || answer.includes('、') || answer.length > 2) {
+      type = 'multiple';
+    } else if (
+      parsedOptions.length === 2 &&
+      (parsedOptions.some((o) => o.includes('正確') || o.includes('True')) ||
+        parsedOptions.some((o) => o.includes('錯誤') || o.includes('False')))
+    ) {
+      type = 'true_false';
+    }
+
+    if (fieldErrors.length > 0) {
+      rowErrors.push({
+        rowNumber,
+        questionIndex,
+        questionPreview: preview,
+        fieldErrors,
+      });
+    } else {
+      questions.push({
+        id: testId,
+        test_id: testId,
+        subjectId,
+        type,
+        content,
+        question: content,
+        difficulty,
+        difficultyScore,
+        points,
+        tags,
+        updatedAt: String(item.updated_at || item.updatedAt || formatSheetTimestamp()),
+        options: parsedOptions,
+        optionsMap,
+        correctAnswer: answer,
+        answer,
+        explanation,
+        categoryId,
+        updatedBy: Number(item.updated_by ?? item.updatedBy ?? 1) || 1,
+        imageUrl: imageUrl || undefined,
+        image_url: imageUrl || undefined,
+      });
+    }
+  }
+
+  return {
+    isValid: rowErrors.length === 0,
+    questions,
+    rowErrors,
+  };
+}
+
+/**
+ * Validate and parse an uploaded exam paper file (.xlsx, .csv, or .json)
+ */
+export async function validateAndParseExamFile(file: File): Promise<ExamUploadValidationResult> {
+  const ext = file.name.split('.').pop()?.toLowerCase() || '';
+  if (!['xlsx', 'csv', 'json'].includes(ext)) {
+    return {
+      isValid: false,
+      questions: [],
+      rowErrors: [],
+      fileError: `不支援的檔案格式「.${ext}」，請上傳 .xlsx (Excel)、.csv 或 .json 格式的試卷檔案。`,
+    };
+  }
+
+  if (ext === 'json') {
+    return await parseJsonExamFile(file);
   }
 
   let rows: string[][] = [];
@@ -588,10 +840,14 @@ export async function validateAndParseExamFile(file: File): Promise<ExamUploadVa
         .split(/[,，、\s]+/)
         .map((t) => t.trim())
         .filter(Boolean);
+      const cleanOptA = cleanOptionText(rawOptA);
+      const cleanOptB = cleanOptionText(rawOptB);
+      const cleanOptC = cleanOptionText(rawOptC);
+      const cleanOptD = cleanOptionText(rawOptD);
       const options =
         parsedType === 'true_false'
           ? [rawOptA || '正確 (True)', rawOptB || '錯誤 (False)']
-          : [rawOptA, rawOptB, rawOptC, rawOptD];
+          : [cleanOptA || rawOptA, cleanOptB || rawOptB, cleanOptC || rawOptC, cleanOptD || rawOptD];
 
       validQuestions.push({
         id: `Q-${parsedSubject.toUpperCase().slice(0, 4)}-${new Date().getFullYear()}${String(Math.floor(1000 + Math.random() * 9000))}-${idx + 1}`,

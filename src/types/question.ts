@@ -35,6 +35,7 @@ export interface ExamQuestion {
   subjectId?: SubjectId;
   subjectName?: string;
   difficulty?: DifficultyLevel;
+  imageUrl?: string;
 }
 
 export interface Question {
@@ -59,6 +60,8 @@ export interface Question {
   categoryId?: number;
   updatedBy?: number;
   sourceScope?: 'public' | 'private';
+  imageUrl?: string;
+  image_url?: string;
 }
 
 export interface ColumnVisibilityState {

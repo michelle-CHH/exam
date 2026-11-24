@@ -138,6 +138,7 @@ export async function getAssignedExam(
       points: q.points || 2,
       answer: q.correctAnswer || q.answer,
       explanation: q.explanation,
+      imageUrl: q.imageUrl || q.image_url,
     };
   });
 
@@ -201,6 +202,7 @@ export const DATABASE_TABLE_SCHEMAS: Record<string, SheetTableSchema> = {
       { key: 'updated_at', label: 'updated_at', desc: '更新時間' },
       { key: 'updated_by', label: 'updated_by', desc: '最後更新者 ID（外鍵關聯至 users.id）' },
       { key: 'time', label: 'time', desc: '題目作答時長 (分鐘)' },
+      { key: 'image_url', label: 'image_url', desc: '題目附圖網址 (Google Drive / 圖床 URL)' },
     ],
   },
   categories: {
@@ -529,6 +531,7 @@ function generateBatchValues(
         q.updatedAt || nowStr,
         q.updatedBy || 1,
         q.time ?? 0,
+        q.imageUrl || q.image_url || '',
       ];
     }),
   ];
@@ -589,7 +592,7 @@ function generateBatchValues(
   return [
     { range: 'users!A1:K', values: userRows },
     { range: 'roles!A1:E', values: roleRows },
-    { range: 'test_bank!A1:M', values: testBankRows },
+    { range: 'test_bank!A1:N', values: testBankRows },
     { range: 'categories!A1:E', values: categoryRows },
     { range: 'quiz_bank_publish!A1:I', values: pubRows },
     { range: 'quiz_bank_unpublish!A1:I', values: unpubRows },
@@ -832,6 +835,7 @@ function parseTableValuesToResult(
     const idxUpdatedAt = findIdx(['updated_at', 'update_time'], 10);
     const idxUpdatedBy = findIdx(['updated_by', 'update_by'], 11);
     const idxTime = headerRow.findIndex((h) => h === 'time' || h === 'duration');
+    const idxImageUrl = headerRow.findIndex((h) => h === 'image_url' || h === 'imageurl' || h === 'img_url' || h === 'image');
 
     for (let i = 1; i < testBankRows.length; i++) {
       const row = testBankRows[i];
@@ -886,6 +890,12 @@ function parseTableValuesToResult(
           : row.length > 12
           ? Number(row[12]) || 0
           : 0;
+      const imageUrlVal =
+        idxImageUrl >= 0
+          ? String(row[idxImageUrl] || '').trim()
+          : row.length > 13
+          ? String(row[13] || '').trim()
+          : '';
 
       let type: 'single' | 'multiple' | 'true_false' = 'single';
       if (answer.includes(',') || answer.includes('、') || answer.length > 2) {
@@ -911,6 +921,8 @@ function parseTableValuesToResult(
         updatedAt,
         categoryId: catId,
         updatedBy,
+        imageUrl: imageUrlVal || undefined,
+        image_url: imageUrlVal || undefined,
       });
     }
   }
@@ -1824,6 +1836,7 @@ export async function appendQuestionToSpreadsheet(
     question.updatedAt || nowTimestamp,
     userId,
     question.time ?? 0,
+    question.imageUrl || question.image_url || '',
   ];
 
   const scriptUrl = getEnvConfiguredScriptUrl();
@@ -1850,7 +1863,7 @@ export async function appendQuestionToSpreadsheet(
   await ensureSpreadsheetTablesExist(accessToken, spreadsheetId);
 
   const res = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/test_bank!A:M:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/test_bank!A:N:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
     {
       method: 'POST',
       headers: {

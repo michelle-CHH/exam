@@ -1,6 +1,7 @@
 "use client";
 
 import type { Answer, ExamQuestion } from "@/types/exam";
+import { QuestionPrompt } from "@/components/exam/QuestionPrompt";
 
 const TYPE_LABELS: Record<ExamQuestion["type"], string> = {
   single: "單選題",
@@ -68,9 +69,12 @@ export function QuestionDisplay({ question, number, answer, flagged, onAnswer, o
         </div>
       </div>
 
-      <p id={`question-${question.id}-prompt`} className="mb-3 text-[15px] leading-7">
-        {question.prompt}
-      </p>
+      <QuestionPrompt
+        id={`question-${question.id}-prompt`}
+        prompt={question.prompt}
+        imageUrl={question.imageUrl}
+        className="mb-3 text-[15px] leading-7"
+      />
 
       <div
         role="group"

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Question } from '@/types';
+import { QuestionPrompt } from '@/components/exam/QuestionPrompt';
 
 interface QuestionDetailModalProps {
   question: Question | null;
@@ -74,9 +75,11 @@ export const QuestionDetailModal: React.FC<QuestionDetailModalProps> = ({
             <div className="text-[11px] font-semibold text-[#434655] uppercase tracking-wider mb-1">
               題目內文 (Stem)
             </div>
-            <p className="text-[15px] leading-relaxed text-[#191c1e] font-medium whitespace-pre-wrap">
-              {question.content}
-            </p>
+            <QuestionPrompt
+              prompt={question.content}
+              imageUrl={question.imageUrl || question.image_url}
+              className="text-[15px] leading-relaxed text-[#191c1e] font-medium"
+            />
           </div>
 
           {/* Options (if any) */}

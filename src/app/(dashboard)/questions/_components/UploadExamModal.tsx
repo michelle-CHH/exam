@@ -5,7 +5,9 @@ import { Question } from '@/types';
 import {
   validateAndParseExamFile,
   ExamUploadValidationResult,
+  cleanOptionText,
 } from '@/utils/fileParsers';
+import { normalizeGoogleDriveImageUrl } from '@/utils/imageUrl';
 
 interface UploadExamModalProps {
   isOpen: boolean;
@@ -69,6 +71,54 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
     if (file) {
       handleSelectNewFile(file);
     }
+  };
+
+  const handleUpdateQuestionImage = (index: number, newImageUrl: string) => {
+    if (!validationResult) return;
+    const normalized = normalizeGoogleDriveImageUrl(newImageUrl);
+    const updated = [...validationResult.questions];
+    updated[index] = {
+      ...updated[index],
+      imageUrl: normalized || undefined,
+      image_url: normalized || undefined,
+    };
+    setValidationResult({
+      ...validationResult,
+      questions: updated,
+    });
+  };
+
+  const handlePasteImageFromClipboard = (index: number, e: React.ClipboardEvent<HTMLInputElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        const file = items[i].getAsFile();
+        if (file) {
+          e.preventDefault();
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const dataUrl = event.target?.result as string;
+            if (dataUrl) {
+              handleUpdateQuestionImage(index, dataUrl);
+            }
+          };
+          reader.readAsDataURL(file);
+          return;
+        }
+      }
+    }
+  };
+
+  const handleUploadImageFile = (index: number, file: File) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (dataUrl) {
+        handleUpdateQuestionImage(index, dataUrl);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -166,7 +216,7 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
           <input
             ref={fileInputRef}
             type="file"
-            accept=".xlsx,.csv"
+            accept=".xlsx,.csv,.json"
             onChange={handleFileChange}
             className="hidden"
           />
@@ -193,7 +243,9 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
               <div className="flex items-center justify-between w-full px-3.5 py-2.5 bg-white rounded-lg border border-[#c3c6d7]/50 shadow-2xs">
                 <div className="flex items-center gap-3 min-w-0 text-left">
                   <span className="w-9 h-9 rounded-lg bg-[#dbe1ff] text-[#004ac6] flex items-center justify-center shrink-0">
-                    <span className="material-symbols-outlined text-[20px]">description</span>
+                    <span className="material-symbols-outlined text-[20px]">
+                      {selectedFile.name.endsWith('.json') ? 'data_object' : 'description'}
+                    </span>
                   </span>
                   <div className="flex flex-col min-w-0">
                     <span className="text-[13px] font-semibold text-[#191c1e] break-all">
@@ -223,7 +275,7 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
                     點擊選取本地檔案，或將試卷檔案拖曳至此
                   </p>
                   <p className="text-[12px] text-[#434655]">
-                    支援標準 Excel (.xlsx) 與 CSV (.csv) 格式試卷檔案
+                    支援標準 Excel (.xlsx)、CSV (.csv) 與 JSON (.json) 格式試卷檔案
                   </p>
                 </div>
                 <button
@@ -378,11 +430,71 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
                         <div className="pl-7 grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] text-[#434655]">
                           {q.options.map((opt, oIdx) => (
                             <span key={oIdx} className="truncate">
-                              {String.fromCharCode(65 + oIdx)}. {opt}
+                              {String.fromCharCode(65 + oIdx)}. {cleanOptionText(opt)}
                             </span>
                           ))}
                         </div>
                       )}
+
+                      {/* Attached Image / Image Binding UI */}
+                      <div className="pl-7 mt-1 pt-1.5 border-t border-[#e8edff] flex flex-wrap items-center gap-2">
+                        {q.imageUrl ? (
+                          <div className="flex items-center gap-2 bg-[#f0f4ff] px-2.5 py-1 rounded-lg border border-[#c3c6d7]/60 max-w-full">
+                            <img
+                              src={q.imageUrl}
+                              alt="題目附圖預覽"
+                              className="w-10 h-10 object-cover rounded border border-[#c3c6d7] shrink-0 bg-white"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-[10px] font-semibold text-[#004ac6] flex items-center gap-1">
+                                <span className="material-symbols-outlined text-[13px]">image</span>
+                                已綁定附圖
+                              </span>
+                              <span className="text-[10px] text-[#434655] truncate max-w-[200px]" title={q.imageUrl}>
+                                {q.imageUrl.startsWith('data:') ? '本地截圖 (Base64)' : q.imageUrl}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateQuestionImage(idx, '')}
+                              className="text-[#ba1a1a] hover:bg-[#ffdad6] p-1 rounded transition-colors ml-auto cursor-pointer"
+                              title="移除附圖"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">delete</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 w-full text-[11px]">
+                            <span className="text-[#434655] font-medium shrink-0 flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[14px] text-[#5c647a]">add_photo_alternate</span>
+                              附圖:
+                            </span>
+                            <input
+                              type="text"
+                              placeholder="貼上 Google Drive 連結或按 Ctrl+V 貼上截圖..."
+                              onPaste={(e) => handlePasteImageFromClipboard(idx, e)}
+                              onChange={(e) => handleUpdateQuestionImage(idx, e.target.value)}
+                              className="flex-1 min-w-[180px] px-2 py-1 text-[11px] rounded border border-[#c3c6d7] bg-white focus:outline-none focus:border-[#004ac6] placeholder:text-[#8e9099]"
+                            />
+                            <label className="shrink-0 px-2 py-1 bg-[#eceef0] hover:bg-[#e0e3e5] text-[#191c1e] rounded text-[11px] font-medium cursor-pointer transition-colors flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[13px]">folder</span>
+                              選圖
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handleUploadImageFile(idx, file);
+                                }}
+                              />
+                            </label>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
