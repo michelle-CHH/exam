@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Header } from '@/components/layout/Header';
 import { Sidebar, AppPageId } from '@/components/layout/Sidebar';
 import { QuestionBankView } from '@/app/(dashboard)/questions/page';
@@ -35,6 +35,7 @@ import {
   syncAllToSpreadsheet,
   readAllTablesFromSpreadsheet,
   appendQuestionToSpreadsheet,
+  batchAppendQuestionsToSpreadsheet,
   appendExamToSpreadsheet,
   appendLogToSpreadsheet,
   syncExamsOnlyToSpreadsheet,
@@ -125,6 +126,8 @@ export default function App() {
   const [isReconnectingSheets, setIsReconnectingSheets] = useState(false);
   const [isSyncingSheets, setIsSyncingSheets] = useState(false);
   const [isLoadingSheetData, setIsLoadingSheetData] = useState(false);
+  const [isSyncingQuestions, setIsSyncingQuestions] = useState(false);
+  const isSyncingQuestionsRef = useRef(false);
   const [hasSyncedSheet, setHasSyncedSheet] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(() =>
     typeof navigator !== 'undefined' ? navigator.onLine : true
@@ -219,6 +222,12 @@ export default function App() {
    * 2. 公用題庫比對
    */
   const handleBidirectionalSync = async (silent: boolean = false) => {
+    // 寫入題庫同步期間，不允許靜默讀取覆蓋前端進行中的狀態
+    if (isSyncingQuestionsRef.current) {
+      console.log('題目正在寫入同步中，略過線上覆蓋讀取');
+      return;
+    }
+
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       setIsOnline(false);
       setHasSyncedSheet(false);
@@ -353,7 +362,21 @@ export default function App() {
 
       // 若一致或初次靜默加載，直接更新最新線上資料
       setCategories(remotePublic.categories);
-      if (remotePublic.questions?.length > 0) setQuestions(remotePublic.questions);
+      if (remotePublic.questions?.length > 0) {
+        setQuestions((prevQuestions) => {
+          // 增量智能合併保護：以題目 ID 為識別，保留本地記憶體中可能尚未同步至線上的題目
+          const map = new Map<string, Question>();
+          remotePublic.questions.forEach((q) => {
+            if (q && q.id) map.set(q.id, q);
+          });
+          prevQuestions.forEach((q) => {
+            if (q && q.id && !map.has(q.id)) {
+              map.set(q.id, q);
+            }
+          });
+          return Array.from(map.values());
+        });
+      }
       if (remotePublic.allExams?.length > 0) setExamPapers(remotePublic.allExams);
       setAuditLogs(remotePublic.auditLogs);
       if (remotePublic.users?.length > 0) setUsersList(remotePublic.users);
@@ -444,6 +467,19 @@ export default function App() {
   const handleFetchSpreadsheetData = async (silent: boolean = false) => {
     await handleBidirectionalSync(silent);
   };
+
+  // 當正在向 Google 試算表同步寫入題目時，攔截意外重整或關閉視窗
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isSyncingQuestions) {
+        e.preventDefault();
+        e.returnValue = '題目正在同步至雲端試算表，若離開可能導致資料未完整儲存。';
+        return e.returnValue;
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isSyncingQuestions]);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -1457,7 +1493,7 @@ export default function App() {
       <UploadExamModal
         isOpen={isUploadExamOpen}
         onClose={() => setIsUploadExamOpen(false)}
-        onUploadSuccess={async (importedQuestions, file, autoGenerateExam) => {
+        onUploadSuccess={async (importedQuestions, file, autoGenerateExam, onProgress) => {
           if (!isAdmin) {
             // 一般使用者：匯入至個人題庫
             setPersonalQuestions((prev) => {
@@ -1473,17 +1509,6 @@ export default function App() {
               return unique;
             });
 
-            if (autoGenerateExam) {
-              setSelectedQuestionIds(importedQuestions.map((q) => q.id));
-              setIsExamGenerationOpen(true);
-            } else {
-              setActivePage('user-selector');
-            }
-            showToast(
-              `🎉 批次上傳成功！已將「${file.name}」中的 ${importedQuestions.length} 筆題目匯入至您的個人題庫。`,
-              'success'
-            );
-
             // 若有綁定個人 Google Sheet，同步寫入個人試算表 test_bank
             if (currentUser?.google_sheet_URL) {
               try {
@@ -1495,7 +1520,9 @@ export default function App() {
                 if (token) {
                   await ensurePersonalSpreadsheetTablesExist(token, currentUser.google_sheet_URL);
                   let rowOffset = personalQuestions.length + 1;
-                  for (const q of importedQuestions) {
+                  for (let i = 0; i < importedQuestions.length; i++) {
+                    const q = importedQuestions[i];
+                    onProgress?.(i + 1, importedQuestions.length, `正在寫入個人試算表 (${i + 1}/${importedQuestions.length})...`);
                     await appendQuestionToUserSheet(token, currentUser.google_sheet_URL, q, rowOffset++);
                   }
                   showToast('✅ 已同步將題目寫入您的個人 Google 試算表 test_bank！', 'success');
@@ -1505,35 +1532,37 @@ export default function App() {
                 showToast(`題目已存入本機個人題庫，但寫入個人試算表失敗：${sheetErr.message || '連線錯誤'}`, 'warning');
               }
             }
+
+            if (autoGenerateExam) {
+              setSelectedQuestionIds(importedQuestions.map((q) => q.id));
+              setIsExamGenerationOpen(true);
+            } else {
+              setActivePage('user-selector');
+            }
+            showToast(
+              `🎉 批次上傳成功！已將「${file.name}」中的 ${importedQuestions.length} 筆題目匯入至您的個人題庫。`,
+              'success'
+            );
             return;
           }
 
-          setQuestions((prev) => [...importedQuestions, ...prev]);
-          if (autoGenerateExam) {
-            setSelectedQuestionIds(importedQuestions.map((q) => q.id));
-            setIsExamGenerationOpen(true);
-          } else {
-            setSelectedSubject('all');
-            setActivePage('question-bank');
-          }
-          showToast(
-            `✅ 批次上傳成功！「${file.name}」通過審查，已匯入 ${importedQuestions.length} 筆題目。`,
-            'success'
-          );
+          // 管理員公用題庫：啟動同步鎖定，防止換頁覆蓋
+          isSyncingQuestionsRef.current = true;
+          setIsSyncingQuestions(true);
 
-          const targetId = connectedSpreadsheetId || envSheetId;
-          const now = formatSheetTimestamp();
-          const logEntry: AuditLog = {
-            id: `#LOG-UPL-${Date.now().toString().slice(-4)}`,
-            action: `批次上傳匯入題庫 (${importedQuestions.length} 題)`,
-            target: `${file.name} (test_bank)`,
-            operator: currentOperatorName,
-            timestamp: now,
-            status: 'success',
-          };
+          try {
+            const targetId = connectedSpreadsheetId || envSheetId;
+            const now = formatSheetTimestamp();
+            const logEntry: AuditLog = {
+              id: `#LOG-UPL-${Date.now().toString().slice(-4)}`,
+              action: `批次上傳匯入題庫 (${importedQuestions.length} 題)`,
+              target: `${file.name} (test_bank)`,
+              operator: currentOperatorName,
+              timestamp: now,
+              status: 'success',
+            };
 
-          if (targetId) {
-            try {
+            if (targetId) {
               const hasGas = Boolean(getEnvConfiguredScriptUrl());
               let token = await getAccessToken();
               if (!hasGas && !token) {
@@ -1541,21 +1570,49 @@ export default function App() {
                 token = signRes?.accessToken || null;
               }
               if (hasGas || token) {
-                let rowOffset = questions.length + 1;
-                for (const q of importedQuestions) {
-                  await appendQuestionToSpreadsheet(token, targetId, q, rowOffset++);
-                }
-                await recordAuditLog(logEntry, token);
-                showToast(
-                  `✅ 已將「${file.name}」的 ${importedQuestions.length} 筆題目同步寫入 Google 試算表 test_bank！`,
-                  'success'
+                await batchAppendQuestionsToSpreadsheet(
+                  token,
+                  targetId,
+                  importedQuestions,
+                  questions,
+                  1,
+                  onProgress
                 );
+                await recordAuditLog(logEntry, token);
+              } else {
+                await recordAuditLog(logEntry);
               }
-            } catch (err) {
-              console.warn('Error writing uploaded questions to Google Sheets:', err);
+            } else {
+              await recordAuditLog(logEntry);
             }
-          } else {
-            await recordAuditLog(logEntry);
+
+            // 同步寫入完成後，以題目 ID 為鍵安全合併至記憶體題庫中
+            setQuestions((prev) => {
+              const map = new Map<string, Question>();
+              prev.forEach((q) => { if (q && q.id) map.set(q.id, q); });
+              importedQuestions.forEach((q) => { if (q && q.id) map.set(q.id, q); });
+              return Array.from(map.values());
+            });
+
+            showToast(
+              `✅ 批次上傳成功！「${file.name}」已同步寫入雲端題庫 (${importedQuestions.length} 筆)。`,
+              'success'
+            );
+
+            if (autoGenerateExam) {
+              setSelectedQuestionIds(importedQuestions.map((q) => q.id));
+              setIsExamGenerationOpen(true);
+            } else {
+              setSelectedSubject('all');
+              setActivePage('question-bank');
+            }
+          } catch (err: any) {
+            console.error('Error writing uploaded questions to Google Sheets:', err);
+            showToast(`寫入 Google 試算表失敗: ${err.message || '連線錯誤'}`, 'error');
+            throw err;
+          } finally {
+            isSyncingQuestionsRef.current = false;
+            setIsSyncingQuestions(false);
           }
         }}
       />

@@ -12,7 +12,12 @@ import { normalizeGoogleDriveImageUrl } from '@/utils/imageUrl';
 interface UploadExamModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onUploadSuccess?: (questions: Question[], file: File, autoGenerateExam?: boolean) => void;
+  onUploadSuccess?: (
+    questions: Question[],
+    file: File,
+    autoGenerateExam?: boolean,
+    onProgress?: (completed: number, total: number, message: string) => void
+  ) => Promise<void> | void;
 }
 
 export const UploadExamModal: React.FC<UploadExamModalProps> = ({
@@ -27,6 +32,13 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
     useState<ExamUploadValidationResult | null>(null);
   const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
   const [uploadSucceeded, setUploadSucceeded] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<{ completed: number; total: number; message: string }>({
+    completed: 0,
+    total: 0,
+    message: '',
+  });
+  const [syncError, setSyncError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -37,6 +49,9 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
       setValidationResult(null);
       setIsPreviewExpanded(false);
       setUploadSucceeded(false);
+      setIsSyncing(false);
+      setSyncProgress({ completed: 0, total: 0, message: '' });
+      setSyncError(null);
     }
   }, [isOpen]);
 
@@ -148,13 +163,37 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
     }
   };
 
-  const handlePerformUpload = (autoGenerateExam: boolean) => {
+  const handlePerformUpload = async (autoGenerateExam: boolean) => {
     if (!selectedFile || !validationResult || !validationResult.isValid) return;
     if (validationResult.questions.length === 0) return;
 
-    setUploadSucceeded(true);
-    onUploadSuccess?.(validationResult.questions, selectedFile, autoGenerateExam);
-    onClose();
+    setIsSyncing(true);
+    setSyncError(null);
+    setSyncProgress({
+      completed: 0,
+      total: validationResult.questions.length,
+      message: '正在準備寫入雲端題庫...',
+    });
+
+    try {
+      if (onUploadSuccess) {
+        await onUploadSuccess(
+          validationResult.questions,
+          selectedFile,
+          autoGenerateExam,
+          (completed, total, message) => {
+            setSyncProgress({ completed, total, message });
+          }
+        );
+      }
+      setUploadSucceeded(true);
+      onClose();
+    } catch (err: any) {
+      console.error('Upload sync error:', err);
+      setSyncError(err?.message || '同步寫入 Google 試算表失敗，請稍後重試');
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const formatFileSize = (bytes: number) => {
@@ -170,10 +209,49 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
         className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
-        onClick={onClose}
+        onClick={isSyncing ? undefined : onClose}
       />
 
       <div className="relative bg-white rounded-xl max-w-3xl w-full shadow-2xl p-6 flex flex-col gap-5 z-10 animate-in fade-in zoom-in-95 duration-200 border border-[#c3c6d7]/30 max-h-[90vh] overflow-y-auto">
+        {/* Upload Syncing Overlay Lock */}
+        {isSyncing && (
+          <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-30 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-200 rounded-xl">
+            <div className="w-14 h-14 rounded-full bg-[#dbe1ff] text-[#004ac6] flex items-center justify-center mb-4 shadow-sm animate-bounce">
+              <span className="material-symbols-outlined text-[32px]">cloud_sync</span>
+            </div>
+            <h3 className="text-[17px] font-bold text-[#191c1e] mb-1">
+              正在同步試題至 Google 試算表
+            </h3>
+            <p className="text-[13px] text-[#434655] mb-4 max-w-md">
+              {syncProgress.message || `正在將 ${validationResult?.questions.length || 0} 筆題目寫入 test_bank 資料表...`}
+            </p>
+
+            {/* Progress Bar */}
+            <div className="w-full max-w-sm bg-[#eceef0] rounded-full h-2.5 overflow-hidden mb-2">
+              <div
+                className="bg-[#004ac6] h-full transition-all duration-300 rounded-full"
+                style={{
+                  width: `${
+                    syncProgress.total > 0
+                      ? Math.min(100, Math.round((syncProgress.completed / syncProgress.total) * 100))
+                      : 15
+                  }%`,
+                }}
+              />
+            </div>
+            <div className="text-[12px] font-semibold text-[#004ac6]">
+              {syncProgress.total > 0
+                ? `${syncProgress.completed} / ${syncProgress.total} 題 (${Math.round(
+                    (syncProgress.completed / syncProgress.total) * 100
+                  )}%)`
+                : '處理中...'}
+            </div>
+            <p className="text-[11px] text-[#747785] mt-3">
+              同步完成後將自動導向組卷或題庫，請勿關閉視窗。
+            </p>
+          </div>
+        )}
+
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-3 border-b border-[#c3c6d7]/30">
           <div className="flex items-center gap-3">
@@ -185,7 +263,8 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="text-[#434655] hover:text-[#191c1e] p-1 rounded cursor-pointer"
+            disabled={isSyncing}
+            className="text-[#434655] hover:text-[#191c1e] p-1 rounded cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <span className="material-symbols-outlined text-[20px]">close</span>
           </button>
@@ -502,32 +581,50 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
             </div>
           )}
 
+          {/* Sync Error Alert */}
+          {syncError && (
+            <div className="p-3 bg-[#ffdad6] text-[#ba1a1a] rounded-lg text-[13px] flex items-center justify-between gap-2 border border-[#ffb4ab]">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px] shrink-0">error</span>
+                <span>{syncError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSyncError(null)}
+                className="text-[12px] font-bold hover:underline shrink-0"
+              >
+                關閉提示
+              </button>
+            </div>
+          )}
+
           {/* Modal Footer: 取消、批次上傳、批次上傳並生成試卷 */}
           <div className="pt-3 border-t border-[#c3c6d7]/30 flex items-center justify-end gap-2.5 flex-wrap">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-[#eceef0] text-[#191c1e] rounded-lg hover:bg-[#e0e3e5] text-[13px] font-medium transition-colors cursor-pointer"
+              disabled={isSyncing}
+              className="px-4 py-2 bg-[#eceef0] text-[#191c1e] rounded-lg hover:bg-[#e0e3e5] text-[13px] font-medium transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               取消
             </button>
             <button
               type="button"
               onClick={() => handlePerformUpload(false)}
-              disabled={!selectedFile || isChecking || hasValidationFailed || !validationResult?.isValid}
+              disabled={!selectedFile || isChecking || hasValidationFailed || !validationResult?.isValid || isSyncing}
               className="px-4 py-2 bg-white hover:bg-[#e8edff] text-[#004ac6] border border-[#004ac6] disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-[13px] font-semibold transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
             >
               <span className="material-symbols-outlined text-[18px]">upload</span>
-              <span>批次上傳</span>
+              <span>{isSyncing ? '同步中...' : '批次上傳'}</span>
             </button>
             <button
               type="button"
               onClick={() => handlePerformUpload(true)}
-              disabled={!selectedFile || isChecking || hasValidationFailed || !validationResult?.isValid}
+              disabled={!selectedFile || isChecking || hasValidationFailed || !validationResult?.isValid || isSyncing}
               className="px-4.5 py-2 bg-[#004ac6] hover:bg-[#003ea8] text-white disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-[13px] font-bold shadow-sm transition-colors cursor-pointer flex items-center gap-1.5"
             >
               <span className="material-symbols-outlined text-[18px]">post_add</span>
-              <span>批次上傳並生成試卷</span>
+              <span>{isSyncing ? '同步中...' : '批次上傳並生成試卷'}</span>
             </button>
           </div>
         </form>

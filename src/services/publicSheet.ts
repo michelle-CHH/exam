@@ -1887,6 +1887,143 @@ export async function appendQuestionToSpreadsheet(
   };
 }
 
+export async function batchAppendQuestionsToSpreadsheet(
+  accessToken: string | null,
+  spreadsheetId: string,
+  importedQuestions: Question[],
+  existingQuestions: Question[] = [],
+  userId: number = 1,
+  onProgress?: (completed: number, total: number, message: string) => void
+): Promise<{ success: boolean; message: string; count: number }> {
+  if (!importedQuestions || importedQuestions.length === 0) {
+    return { success: true, message: '沒有題目需要寫入', count: 0 };
+  }
+
+  const total = importedQuestions.length;
+  onProgress?.(0, total, `準備寫入 ${total} 筆題目至 Google 試算表...`);
+
+  const scriptUrl = getEnvConfiguredScriptUrl();
+  const canUseGas = Boolean(scriptUrl) || typeof window !== 'undefined';
+  const nowTimestamp = formatSheetTimestamp();
+  const testBankHeaders = DATABASE_TABLE_SCHEMAS.test_bank.columns.map((c) => c.label);
+
+  // 1. 若可使用 GAS，優先嘗試整批原子寫入（1~2 秒完成）
+  if (canUseGas) {
+    try {
+      const rows = importedQuestions.map((q, idx) => {
+        const categoryId = q.categoryId || 0;
+        const optionsStr = formatOptionsToJsonObject(q.options || q.optionsMap);
+        const diffScore = q.difficultyScore ?? (q.difficulty === 'hard' ? 4 : q.difficulty === 'medium' ? 3 : 2);
+        const tagsStr = q.tags ? q.tags.join(', ') : '';
+        return [
+          existingQuestions.length + idx + 1,
+          q.id,
+          q.content,
+          optionsStr,
+          q.correctAnswer || '',
+          q.explanation || '',
+          diffScore,
+          q.points,
+          categoryId,
+          tagsStr,
+          q.updatedAt || nowTimestamp,
+          userId,
+          q.time ?? 0,
+          q.imageUrl || q.image_url || '',
+        ];
+      });
+
+      onProgress?.(0, total, `正在透過批次 API 同步 ${total} 筆題目至試算表...`);
+
+      let batchSuccess = false;
+      // 嘗試 action: 'batchUpsertRows'
+      try {
+        const gasRes = await postToGasScript({
+          action: 'batchUpsertRows',
+          sheetName: 'test_bank',
+          headers: testBankHeaders,
+          keyColumnIndex: 1,
+          rows,
+        });
+        if (gasRes && gasRes.success !== false) {
+          batchSuccess = true;
+        }
+      } catch (err: any) {
+        // GAS 若不支援 batchUpsertRows，使用已驗證相容的 replaceSheets 整批替換
+      }
+
+      if (!batchSuccess) {
+        // 使用現有已支援的 replaceSheets 進行整批原子替換寫入
+        const combinedMap = new Map<string, Question>();
+        existingQuestions.forEach((q) => { if (q && q.id) combinedMap.set(q.id, q); });
+        importedQuestions.forEach((q) => { if (q && q.id) combinedMap.set(q.id, q); });
+        const allQuestions = Array.from(combinedMap.values());
+
+        const fullTestBankRows = [
+          testBankHeaders,
+          ...allQuestions.map((q, idx) => {
+            const categoryId = q.categoryId || 0;
+            const optionsStr = formatOptionsToJsonObject(q.options || q.optionsMap);
+            const diffScore = q.difficultyScore ?? (q.difficulty === 'hard' ? 4 : q.difficulty === 'medium' ? 3 : 2);
+            const tagsStr = q.tags ? q.tags.join(', ') : '';
+            return [
+              idx + 1,
+              q.id,
+              q.content,
+              optionsStr,
+              q.correctAnswer || '',
+              q.explanation || '',
+              diffScore,
+              q.points,
+              categoryId,
+              tagsStr,
+              q.updatedAt || nowTimestamp,
+              q.updatedBy || userId,
+              q.time ?? 0,
+              q.imageUrl || q.image_url || '',
+            ];
+          }),
+        ];
+
+        onProgress?.(Math.floor(total / 2), total, `正在整批原子寫入 ${allQuestions.length} 筆題庫資料...`);
+        await postToGasScript({
+          action: 'replaceSheets',
+          sheets: [{ sheetName: 'test_bank', rows: fullTestBankRows }],
+        });
+        batchSuccess = true;
+      }
+
+      if (batchSuccess) {
+        onProgress?.(total, total, `✅ 已成功整批寫入 ${total} 筆題目！`);
+        return {
+          success: true,
+          message: `已成功將 ${total} 筆題目整批同步寫入 Google 試算表 test_bank 表！`,
+          count: total,
+        };
+      }
+    } catch (batchErr: any) {
+      console.warn('Batch write failed, falling back to sequential upsert:', batchErr);
+    }
+  }
+
+  // 2. 降級容錯方案：逐題寫入並即時回報進度
+  let successCount = 0;
+  let nextRowIdx = existingQuestions.length + 1;
+  for (let i = 0; i < importedQuestions.length; i++) {
+    const q = importedQuestions[i];
+    onProgress?.(i + 1, total, `正在同步第 ${i + 1} / ${total} 題 (${q.id})...`);
+    await appendQuestionToSpreadsheet(accessToken, spreadsheetId, q, nextRowIdx++, userId);
+    successCount++;
+  }
+
+  onProgress?.(total, total, `✅ 已完成全部 ${total} 筆題目同步！`);
+  return {
+    success: true,
+    message: `已同步寫入 ${successCount} 筆題目至 Google 試算表 test_bank 表！`,
+    count: successCount,
+  };
+}
+
 export async function appendExamToSpreadsheet(
   accessToken: string | null,
   spreadsheetId: string,
