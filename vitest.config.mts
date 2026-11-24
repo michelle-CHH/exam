@@ -10,6 +10,17 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
+    coverage: {
+      provider: "v8",
+      // text: 終端機顯示表格 | json-summary: 供 GitHub Actions 上傳留存 | html: 本機視覺化報告
+      reporter: ["text", "json-summary", "html"],
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: [
+        "src/test/**",
+        "**/*.test.{ts,tsx}",
+        "**/*.d.ts",
+      ],
+    },
   },
   resolve: {
     // 必須與 tsconfig.json 的 paths 保持一致
