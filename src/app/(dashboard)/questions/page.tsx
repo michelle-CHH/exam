@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Question, SubjectId, SubjectFilter, QuestionType, DifficultyLevel, ColumnVisibilityState } from '@/types';
+import { Question, SubjectId, SubjectFilter, QuestionType, DifficultyLevel, ColumnVisibilityState, CategoryItem } from '@/types';
 import { ColumnVisibilityMenu } from '@/app/(dashboard)/questions/_components/ColumnVisibilityMenu';
+import { buildCategoryBreadcrumb, getAllDescendantCategoryIds } from '@/utils/categoryTree';
 
 interface QuestionBankViewProps {
   subjectId?: SubjectFilter;
+  categories?: CategoryItem[];
   questions?: Question[];
   selectedQuestionIds?: string[];
   onToggleSelectQuestion?: (id: string) => void;
@@ -17,11 +19,13 @@ interface QuestionBankViewProps {
   onViewQuestion?: (q: Question) => void;
   onEditQuestion?: (q: Question) => void;
   onDeleteQuestion?: (q: Question) => void;
+  onNavigateToCategories?: () => void;
   isLoadingData?: boolean;
 }
 
 export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
   subjectId = 'all',
+  categories = [],
   questions = [],
   selectedQuestionIds = [],
   onToggleSelectQuestion = () => {},
@@ -33,6 +37,7 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
   onViewQuestion = () => {},
   onEditQuestion = () => {},
   onDeleteQuestion = () => {},
+  onNavigateToCategories,
   isLoadingData,
 }) => {
   const [activeTab, setActiveTab] = useState<QuestionType>('all');
@@ -131,8 +136,50 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
     if (subjectId === 'all') {
       return questions;
     }
+
+    const numId = Number(subjectId);
+    if (!isNaN(numId) && numId > 0 && categories && categories.length > 0) {
+      const allIds = new Set<number>([numId, ...getAllDescendantCategoryIds(numId, categories)]);
+      const matchedCat = categories.find((c) => c.id === numId);
+      return questions.filter((q) => {
+        if (q.categoryId && allIds.has(Number(q.categoryId))) return true;
+        if (matchedCat && (q.subjectId === matchedCat.categories_name || q.category_name === matchedCat.categories_name)) {
+          return true;
+        }
+        return false;
+      });
+    }
+
+    const matchedByName = categories?.find((c) => c.categories_name === subjectId);
+    if (matchedByName) {
+      const allIds = new Set<number>([matchedByName.id, ...getAllDescendantCategoryIds(matchedByName.id, categories)]);
+      return questions.filter((q) => {
+        if (q.categoryId && allIds.has(Number(q.categoryId))) return true;
+        return q.subjectId === subjectId || q.category_name === subjectId;
+      });
+    }
+
     return questions.filter((q) => q.subjectId === subjectId);
-  }, [questions, subjectId]);
+  }, [questions, subjectId, categories]);
+
+  const displaySubjectTitle = useMemo(() => {
+    if (subjectId === 'all') return '題目列表總表';
+    if (subjectId in subjectTitles) return subjectTitles[subjectId as keyof typeof subjectTitles]?.split(' ')[0] || String(subjectId);
+
+    const numId = Number(subjectId);
+    if (!isNaN(numId) && numId > 0 && categories && categories.length > 0) {
+      const breadcrumb = buildCategoryBreadcrumb(numId, categories);
+      if (breadcrumb) return breadcrumb;
+    }
+
+    const matchedByName = categories?.find((c) => c.categories_name === subjectId);
+    if (matchedByName) {
+      const breadcrumb = buildCategoryBreadcrumb(matchedByName.id, categories);
+      if (breadcrumb) return breadcrumb;
+    }
+
+    return String(subjectId);
+  }, [subjectId, categories, subjectTitles]);
 
   // Actual dynamic counts from mock data
   const totalSubjectCount = currentSubjectQuestions.length;
@@ -222,7 +269,7 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-3">
             <h1 className="text-[24px] leading-[32px] text-[#191c1e] font-bold tracking-tight">
-              {subjectId === 'all' ? '題目列表總表' : (subjectTitles[subjectId]?.split(' ')[0] || '數學科')}
+              {displaySubjectTitle}
             </h1>
           </div>
         </div>
@@ -265,6 +312,18 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
             <span className="material-symbols-outlined text-[18px]">add</span>
             <span>新增題目</span>
           </button>
+
+          {/* Category Management Button */}
+          {onNavigateToCategories && (
+            <button
+              onClick={onNavigateToCategories}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#c3c6d7] text-[#191c1e] text-[14px] font-medium rounded-lg hover:bg-[#f2f4f6] shadow-xs transition-colors cursor-pointer"
+              type="button"
+            >
+              <span className="material-symbols-outlined text-[18px] text-[#004ac6]">account_tree</span>
+              <span>分類管理</span>
+            </button>
+          )}
         </div>
       </div>
 

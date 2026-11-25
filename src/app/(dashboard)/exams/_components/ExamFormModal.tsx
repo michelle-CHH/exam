@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Question, ExamPaper } from '@/types';
 import { formatSheetTimestamp } from '@/utils/formatters';
+import { getSubjectDisplayName } from '@/services/publicSheet';
 
 interface ExamGenerationModalProps {
   isOpen: boolean;
@@ -91,18 +92,12 @@ export const ExamGenerationModal: React.FC<ExamGenerationModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const detectedSubjectId = selectedQuestions[0]?.subjectId || 'math';
+    const firstQ = selectedQuestions[0];
+    const detectedSubjectId = firstQ?.subjectId || firstQ?.category_name || '未分類';
     const detectedSubjectName =
-      detectedSubjectId === 'chinese' ? '國文' :
-      detectedSubjectId === 'english' ? '英文' :
-      detectedSubjectId === 'math' ? '數學' :
-      detectedSubjectId === 'biology' ? '生物' :
-      detectedSubjectId === 'physics' ? '物理' :
-      detectedSubjectId === 'chemistry' ? '化學' :
-      detectedSubjectId === 'history' ? '歷史' :
-      detectedSubjectId === 'geography' ? '地理' :
-      detectedSubjectId === 'civics' ? '公民' :
-      detectedSubjectId === 'astronomy' ? '地球科學' : '綜合';
+      firstQ?.category_name ||
+      getSubjectDisplayName(detectedSubjectId) ||
+      (detectedSubjectId !== '未分類' ? detectedSubjectId : '綜合');
 
     const newExam: ExamPaper = {
       id: createdExamId,

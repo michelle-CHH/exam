@@ -1,4 +1,4 @@
-export type SubjectId =
+export type BuiltinSubjectId =
   | 'chinese'
   | 'english'
   | 'math'
@@ -9,6 +9,8 @@ export type SubjectId =
   | 'civics'
   | 'geography'
   | 'history';
+
+export type SubjectId = BuiltinSubjectId | (string & {});
 
 export type SubjectFilter = SubjectId | 'all';
 
@@ -58,6 +60,8 @@ export interface Question {
   answer?: string;
   explanation?: string; // 對應 Sheet 的 Explanation
   categoryId?: number;
+  category_name?: string;
+  subject?: string;
   updatedBy?: number;
   sourceScope?: 'public' | 'private';
   imageUrl?: string;

@@ -3,10 +3,12 @@
 import React, { useState } from 'react';
 import { SubjectId, SubjectFilter, Question, CategoryItem, UserProfile } from '@/types';
 import { CATEGORY_ID_TO_SUBJECT, SUBJECT_NAME_MAP } from '@/services/publicSheet';
+import { buildCategoryTree, countQuestionsInCategory, CategoryTreeNode } from '@/utils/categoryTree';
 
 export type AppPageId =
   | 'question-bank'
   | 'exam-papers'
+  | 'category-manage'
   | 'system-settings'
   | 'account-manage'
   | 'user-selector'
@@ -36,7 +38,7 @@ interface SidebarProps {
 }
 
 function resolveCategorySubjectId(cat: CategoryItem): SubjectId | undefined {
-  return CATEGORY_ID_TO_SUBJECT[cat.id] || SUBJECT_NAME_MAP[cat.categories_name];
+  return CATEGORY_ID_TO_SUBJECT[cat.id] || SUBJECT_NAME_MAP[cat.categories_name] || cat.categories_name;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -133,6 +135,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 type="button"
               >
                 <span className="material-symbols-outlined text-[20px]">assignment</span>
+              </button>
+
+              <button
+                onClick={() => onNavigate('category-manage')}
+                className={`p-2.5 rounded-lg transition-colors cursor-pointer ${activePage === 'category-manage'
+                    ? 'bg-[#004ac6] text-white shadow-sm'
+                    : 'text-[#434655] hover:bg-[#eceef0] hover:text-[#191c1e]'
+                  }`}
+                title="學科與分類管理"
+                type="button"
+              >
+                <span className="material-symbols-outlined text-[20px]">account_tree</span>
               </button>
 
               <button
@@ -303,78 +317,63 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <span className="text-[11px] font-mono text-[#737686]">{questions.length}</span>
                     </button>
 
-                    {topLevelCategories.map((topCat) => {
-                      const children = getChildCategories(topCat.id);
-                      const isExpanded = expandedGroupIds[topCat.id] ?? true;
-                      const domainName = topCat.categories_name;
+                    {(() => {
+                      const tree = buildCategoryTree(categories, questions);
+                      const renderTreeItem = (node: CategoryTreeNode, depth: number = 0) => {
+                        const hasChildren = node.children && node.children.length > 0;
+                        const isExpanded = expandedGroupIds[node.id] ?? true;
+                        const subId = resolveCategorySubjectId(node) || String(node.id);
+                        const count = countQuestionsInCategory(node.id, categories, questions);
+                        const isSel = (selectedSubject === subId || selectedSubject === String(node.id) || selectedSubject === node.categories_name) && activePage === 'question-bank';
 
-                      return (
-                        <div key={topCat.id} className="flex flex-col gap-0.5">
-                          {children.length > 0 ? (
-                            <>
-                              <button
-                                onClick={() => toggleGroup(topCat.id)}
-                                className="flex items-center justify-between px-2 py-1 text-[12px] font-semibold text-[#434655] hover:text-[#191c1e] cursor-pointer"
-                                type="button"
+                        return (
+                          <div key={node.id} className="flex flex-col gap-0.5">
+                            <div
+                              className={`flex items-center justify-between rounded text-[12px] cursor-pointer transition-colors ${
+                                isSel
+                                  ? 'bg-[#004ac6] text-white font-bold'
+                                  : 'text-[#434655] hover:bg-[#f2f4f6]'
+                              }`}
+                              style={{ paddingLeft: `${depth * 10 + 8}px`, paddingRight: '8px', paddingTop: '4px', paddingBottom: '4px' }}
+                            >
+                              <div
+                                className="flex items-center gap-1 min-w-0 flex-1 truncate"
+                                onClick={() => {
+                                  onSelectSubject(subId);
+                                  onNavigate('question-bank');
+                                }}
                               >
-                                <span>{domainName}</span>
-                                <span className="material-symbols-outlined text-[16px]">
-                                  {isExpanded ? 'expand_less' : 'expand_more'}
-                                </span>
-                              </button>
-                              {isExpanded &&
-                                children.map((subCat) => {
-                                  const subId = resolveCategorySubjectId(subCat);
-                                  if (!subId) return null;
-                                  const count = getSubjectCount(subId, subCat.id);
-                                  const isSel = selectedSubject === subId && activePage === 'question-bank';
-                                  return (
-                                    <button
-                                      key={subCat.id}
-                                      onClick={() => {
-                                        onSelectSubject(subId);
-                                        onNavigate('question-bank');
-                                      }}
-                                      className={`flex items-center justify-between pl-4 pr-2 py-1 rounded text-[12px] cursor-pointer transition-colors ${isSel
-                                          ? 'bg-[#004ac6] text-white font-bold'
-                                          : 'text-[#434655] hover:bg-[#f2f4f6]'
-                                        }`}
-                                      type="button"
-                                    >
-                                      <span>{subCat.categories_name}</span>
-                                      <span className="text-[10px] font-mono">{count}</span>
-                                    </button>
-                                  );
-                                })}
-                            </>
-                          ) : (
-                            (() => {
-                              const subId = resolveCategorySubjectId(topCat);
-                              if (!subId) return null;
-                              const count = getSubjectCount(subId, topCat.id);
-                              const isSel = selectedSubject === subId && activePage === 'question-bank';
-                              return (
-                                <button
-                                  key={topCat.id}
-                                  onClick={() => {
-                                    onSelectSubject(subId);
-                                    onNavigate('question-bank');
-                                  }}
-                                  className={`flex items-center justify-between px-2.5 py-1 rounded text-[12px] cursor-pointer transition-colors ${isSel
-                                      ? 'bg-[#004ac6] text-white font-bold'
-                                      : 'text-[#434655] hover:bg-[#f2f4f6]'
-                                    }`}
-                                  type="button"
-                                >
-                                  <span>{topCat.categories_name}</span>
-                                  <span className="text-[10px] font-mono">{count}</span>
-                                </button>
-                              );
-                            })()
-                          )}
-                        </div>
-                      );
-                    })}
+                                {hasChildren && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleGroup(node.id);
+                                    }}
+                                    className="p-0.5 rounded hover:bg-black/10 flex items-center justify-center cursor-pointer"
+                                  >
+                                    <span className="material-symbols-outlined text-[14px]">
+                                      {isExpanded ? 'expand_less' : 'expand_more'}
+                                    </span>
+                                  </button>
+                                )}
+                                <span className="truncate">{node.categories_name}</span>
+                              </div>
+                              <span className={`text-[10px] font-mono ${isSel ? 'text-white' : 'text-[#737686]'}`}>
+                                {count}
+                              </span>
+                            </div>
+                            {hasChildren && isExpanded && (
+                              <div className="flex flex-col gap-0.5 border-l border-[#c3c6d7]/30 ml-2">
+                                {node.children.map((child) => renderTreeItem(child, depth + 1))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      };
+
+                      return tree.map((node) => renderTreeItem(node, 0));
+                    })()}
                   </div>
                 )}
               </div>
@@ -390,6 +389,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 <span className="material-symbols-outlined text-[20px]">assignment</span>
                 <span>試卷管理</span>
+              </button>
+
+              {/* 4. 學科與分類管理 */}
+              <button
+                onClick={() => onNavigate('category-manage')}
+                className={`flex items-center gap-3 px-3 py-2.5 transition-colors rounded text-[14px] cursor-pointer text-left ${activePage === 'category-manage'
+                    ? 'bg-[#004ac6] text-white font-semibold shadow-xs'
+                    : 'text-[#434655] hover:bg-[#eceef0] hover:text-[#191c1e]'
+                  }`}
+                type="button"
+              >
+                <span className="material-symbols-outlined text-[20px]">account_tree</span>
+                <span>學科與分類管理</span>
               </button>
 
               {/* 快速新增/匯入試卷按鈕 */}

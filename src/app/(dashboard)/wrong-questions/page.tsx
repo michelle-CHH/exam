@@ -9,7 +9,7 @@ import { parseWrongQuestionsExcel } from '@/utils/fileParsers';
 import { fetchWrongQuestionsFromUserSheet, WrongQuestionRecord } from '@/services/userSheet';
 import { getAccessToken, googleSignIn } from '@/services/googleAuth';
 import { formatSheetTimestamp } from '@/utils/formatters';
-import { verifyUserSessionActive } from '@/services/publicSheet';
+import { verifyUserSessionActive, getSubjectDisplayName } from '@/services/publicSheet';
 
 export interface StoredWrongRecord {
   id: string;
@@ -111,8 +111,8 @@ export default function WrongQuestionsPage({
             correctAnswer: q.correctAnswer || q.answer || 'A',
             explanation: q.explanation || '',
             status: 'wrong',
-            subject: q.subjectId === 'chinese' ? '國文' : q.subjectId === 'english' ? '英文' : q.subjectId === 'math' ? '數學' : '綜合',
-            subjectId: q.subjectId || 'math',
+            subject: q.subject || getSubjectDisplayName(q.subjectId),
+            subjectId: q.subjectId || '未分類',
             difficulty: (q.difficulty as any) || 'medium',
             points: q.points || 5,
             submittedAt: Date.now(),
@@ -120,7 +120,7 @@ export default function WrongQuestionsPage({
         });
         setRecords(converted);
       }
-    } catch {}
+    } catch { }
   }, []);
 
   const saveRecords = (newRecords: StoredWrongRecord[]) => {
@@ -144,7 +144,7 @@ export default function WrongQuestionsPage({
           updatedAt: formatSheetTimestamp(),
         }));
         localStorage.setItem('quiz_wrong_questions_book', JSON.stringify(asQuestions));
-      } catch {}
+      } catch { }
     }
   };
 
@@ -184,9 +184,8 @@ export default function WrongQuestionsPage({
         }
 
         const isUnanswered = wr.userAnswer.includes('未作答') || wr.status.includes('未作答');
-        const rawSub = matchedQ?.subjectId || 'math';
-        const subName =
-          rawSub === 'chinese' ? '國文' : rawSub === 'english' ? '英文' : rawSub === 'math' ? '數學' : '綜合';
+        const rawSub = matchedQ?.subjectId || '未分類';
+        const subName = matchedQ?.category_name || getSubjectDisplayName(rawSub);
 
         const rawTime = wr.submittedAt;
         const parsedTime = typeof rawTime === 'number' && rawTime > 0 ? rawTime : Date.now();
@@ -246,7 +245,7 @@ export default function WrongQuestionsPage({
         try {
           const signRes = await googleSignIn();
           token = signRes?.accessToken || null;
-        } catch {}
+        } catch { }
       }
 
       const { records: sheetRecords } = await fetchWrongQuestionsFromUserSheet(
@@ -278,11 +277,11 @@ export default function WrongQuestionsPage({
           subject: sr.subject,
           subjectId:
             sr.subject.includes('國') ? 'chinese' :
-            sr.subject.includes('英') ? 'english' :
-            sr.subject.includes('數') ? 'math' : 'math',
+              sr.subject.includes('英') ? 'english' :
+                sr.subject.includes('數') ? 'math' : sr.subject || '未分類',
           difficulty:
             sr.difficulty.includes('難') ? 'hard' :
-            sr.difficulty.includes('易') || sr.difficulty.includes('簡') ? 'easy' : 'medium',
+              sr.difficulty.includes('易') || sr.difficulty.includes('簡') ? 'easy' : 'medium',
           points: 5,
           submittedAt: parsedTime,
           submitTime: sr.submitTime,
@@ -344,11 +343,11 @@ export default function WrongQuestionsPage({
         options: r.options && r.options.length > 0
           ? r.options
           : [
-              { id: 'A', text: '選項 A' },
-              { id: 'B', text: '選項 B' },
-              { id: 'C', text: '選項 C' },
-              { id: 'D', text: '選項 D' },
-            ],
+            { id: 'A', text: '選項 A' },
+            { id: 'B', text: '選項 B' },
+            { id: 'C', text: '選項 C' },
+            { id: 'D', text: '選項 D' },
+          ],
         points: r.points || 5,
         answer: r.correctAnswer,
         explanation: r.explanation,
@@ -363,7 +362,7 @@ export default function WrongQuestionsPage({
       try {
         const existingExams = JSON.parse(localStorage.getItem('quiz_custom_exams') || '[]');
         localStorage.setItem('quiz_custom_exams', JSON.stringify([retestExam, ...existingExams]));
-      } catch {}
+      } catch { }
       window.location.href = `/exam/${retestExam.id}`;
     }
   };
@@ -489,9 +488,8 @@ export default function WrongQuestionsPage({
                     </div>
                     <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full ${
-                          item.diff === '困難' ? 'bg-rose-500' : item.diff === '簡單' ? 'bg-emerald-500' : 'bg-amber-500'
-                        }`}
+                        className={`h-full rounded-full ${item.diff === '困難' ? 'bg-rose-500' : item.diff === '簡單' ? 'bg-emerald-500' : 'bg-amber-500'
+                          }`}
                         style={{ width: `${pct}%` }}
                       />
                     </div>
@@ -512,33 +510,30 @@ export default function WrongQuestionsPage({
                 <button
                   type="button"
                   onClick={() => setFilter('all')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    filter === 'all'
-                      ? 'bg-[#004ac6] text-white shadow-xs'
-                      : 'border border-slate-300 text-slate-700 hover:bg-slate-50'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${filter === 'all'
+                    ? 'bg-[#004ac6] text-white shadow-xs'
+                    : 'border border-slate-300 text-slate-700 hover:bg-slate-50'
+                    }`}
                 >
                   全部錯題（{records.length}）
                 </button>
                 <button
                   type="button"
                   onClick={() => setFilter('wrong')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    filter === 'wrong'
-                      ? 'bg-rose-600 text-white shadow-xs'
-                      : 'border border-slate-300 text-slate-700 hover:bg-slate-50'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${filter === 'wrong'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'border border-slate-300 text-slate-700 hover:bg-slate-50'
+                    }`}
                 >
                   只看答錯（{records.filter((r) => r.status === 'wrong').length}）
                 </button>
                 <button
                   type="button"
                   onClick={() => setFilter('unanswered')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    filter === 'unanswered'
-                      ? 'bg-amber-600 text-white shadow-xs'
-                      : 'border border-slate-300 text-slate-700 hover:bg-slate-50'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${filter === 'unanswered'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'border border-slate-300 text-slate-700 hover:bg-slate-50'
+                    }`}
                 >
                   未作答（{records.filter((r) => r.status === 'unanswered').length}）
                 </button>
@@ -629,13 +624,12 @@ export default function WrongQuestionsPage({
                           {item.subject}
                         </span>
                         <span
-                          className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                            item.difficulty === 'hard'
-                              ? 'bg-rose-50 text-rose-700'
-                              : item.difficulty === 'easy'
+                          className={`text-xs font-semibold px-2 py-0.5 rounded-full ${item.difficulty === 'hard'
+                            ? 'bg-rose-50 text-rose-700'
+                            : item.difficulty === 'easy'
                               ? 'bg-emerald-50 text-emerald-700'
                               : 'bg-amber-50 text-amber-700'
-                          }`}
+                            }`}
                         >
                           {item.difficulty === 'hard' ? '困難' : item.difficulty === 'easy' ? '簡單' : '中等'}
                         </span>
@@ -647,11 +641,10 @@ export default function WrongQuestionsPage({
                       </div>
 
                       <span
-                        className={`rounded-full px-3 py-1 text-xs font-bold ${
-                          item.status === 'unanswered'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-rose-100 text-rose-800'
-                        }`}
+                        className={`rounded-full px-3 py-1 text-xs font-bold ${item.status === 'unanswered'
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-rose-100 text-rose-800'
+                          }`}
                       >
                         {item.status === 'unanswered' ? '未作答' : '答錯'}
                       </span>

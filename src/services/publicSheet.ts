@@ -284,6 +284,39 @@ export const SUBJECT_NAME_MAP: Record<string, SubjectId> = {
   '歷史': 'history',
 };
 
+/**
+ * 動態解析學科顯示名稱：
+ * 1. 優先比對 Google Sheet categories 表中對應的分類名稱（依 id 或 categories_name）
+ * 2. 查閱內建中英文映射
+ * 3. 忠實回傳原科目名稱（絕不強制降級為 'math'）
+ */
+export function getSubjectDisplayName(subjectId?: string | null, categories: CategoryItem[] = []): string {
+  if (!subjectId) return '未分類';
+  const cleanId = String(subjectId).trim();
+  if (!cleanId) return '未分類';
+
+  const matchedCat = categories.find(
+    (c) => String(c.id) === cleanId || c.categories_name === cleanId
+  );
+  if (matchedCat) return matchedCat.categories_name;
+
+  const builtinMap: Record<string, string> = {
+    chinese: '國文',
+    english: '英文',
+    math: '數學',
+    biology: '生物',
+    physics: '物理',
+    chemistry: '化學',
+    astronomy: '天文',
+    civics: '公民',
+    geography: '地理',
+    history: '歷史',
+  };
+  if (builtinMap[cleanId]) return builtinMap[cleanId];
+
+  return cleanId;
+}
+
 export const INITIAL_ROLES_DATA: RoleItem[] = [
   { id: 1, code: 'ADMIN', name: '管理員', description: '具備系統所有試題、試卷與資料庫管理最高權限', created_at: '2024-01-01 00:00:00' },
   { id: 2, code: 'USER', name: '用戶', description: '一般系統用戶，可瀏覽題庫、組卷及參加線上測驗', created_at: '2024-01-01 00:00:00' },
@@ -2179,6 +2212,98 @@ export async function syncExamsOnlyToSpreadsheet(
       ],
     }),
   });
+}
+
+/**
+ * 將學科與分類層級 (categories) 同步儲存至 Google 試算表及本地快照
+ */
+export async function saveCategoriesToSpreadsheet(
+  accessToken: string | null,
+  spreadsheetId: string,
+  categories: CategoryItem[]
+): Promise<{ success: boolean; message: string }> {
+  const categoryHeaders = ['id', 'categories_name', 'parent_id', 'level', 'sort_order'];
+  const categoryRows: any[][] = [
+    categoryHeaders,
+    ...categories.map((c, idx) => [
+      c.id,
+      c.categories_name,
+      c.parent_id ?? 0,
+      c.level ?? 1,
+      c.sort_order ?? idx + 1,
+    ]),
+  ];
+
+  // 1. 同步更新本機快照 (localStorage)
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem('quiz_custom_categories', JSON.stringify(categories));
+      const offlineRaw = localStorage.getItem('offline_public_db_cache');
+      if (offlineRaw) {
+        const parsed = JSON.parse(offlineRaw);
+        parsed.categories = categories;
+        localStorage.setItem('offline_public_db_cache', JSON.stringify(parsed));
+      }
+    } catch (e) {
+      console.warn('Failed to update local categories cache:', e);
+    }
+  }
+
+  // 2. 優先透過 GAS 替換 categories 工作表
+  const scriptUrl = getEnvConfiguredScriptUrl();
+  const canUseGas = Boolean(scriptUrl) || typeof window !== 'undefined';
+  if (canUseGas) {
+    try {
+      await postToGasScript({
+        action: 'replaceSheets',
+        sheets: [{ sheetName: 'categories', rows: categoryRows }],
+      });
+      return { success: true, message: `成功同步 ${categories.length} 個學科分類至 Google 試算表！` };
+    } catch (e: any) {
+      if (!accessToken) {
+        return { success: true, message: `分類已暫存於本機快照（雲端同步失敗: ${e.message}）` };
+      }
+    }
+  }
+
+  // 3. 透過 Google Sheets API 寫入
+  if (!accessToken || !spreadsheetId) {
+    return { success: true, message: `已儲存 ${categories.length} 個學科分類至本機快照！` };
+  }
+
+  try {
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchClear`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ranges: ['categories!A1:Z'],
+      }),
+    });
+  } catch (e) {
+    console.warn('Batch clear categories ignored:', e);
+  }
+
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      valueInputOption: 'USER_ENTERED',
+      data: [{ range: 'categories!A1:E', values: categoryRows }],
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `儲存分類失敗 (${res.status})`);
+  }
+
+  return { success: true, message: `成功更新 ${categories.length} 個學科分類至 Google 試算表！` };
 }
 
 export async function deleteRowsFromSpreadsheetViaGas(

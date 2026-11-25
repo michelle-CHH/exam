@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Question, SubjectId, DifficultyLevel } from '@/types';
+import { Question, SubjectId, DifficultyLevel, CategoryItem } from '@/types';
 import { formatSheetTimestamp } from '@/utils/formatters';
+import { buildCategoryBreadcrumb } from '@/utils/categoryTree';
 
 interface CreateQuestionModalProps {
   isOpen: boolean;
@@ -10,6 +11,7 @@ interface CreateQuestionModalProps {
   onSave: (q: Question) => void;
   initialQuestion?: Question | null;
   defaultSubjectId?: SubjectId;
+  categories?: CategoryItem[];
 }
 
 export const CreateQuestionModal: React.FC<CreateQuestionModalProps> = ({
@@ -18,8 +20,10 @@ export const CreateQuestionModal: React.FC<CreateQuestionModalProps> = ({
   onSave,
   initialQuestion,
   defaultSubjectId = 'math',
+  categories = [],
 }) => {
   const [subjectId, setSubjectId] = useState<SubjectId>(defaultSubjectId);
+  const [categoryId, setCategoryId] = useState<number | undefined>(initialQuestion?.categoryId);
   const [type, setType] = useState<'single' | 'multiple' | 'true_false'>('single');
   const [content, setContent] = useState('');
   const [difficulty, setDifficulty] = useState<DifficultyLevel>('medium');
@@ -37,6 +41,7 @@ export const CreateQuestionModal: React.FC<CreateQuestionModalProps> = ({
   useEffect(() => {
     if (initialQuestion) {
       setSubjectId(initialQuestion.subjectId);
+      setCategoryId(initialQuestion.categoryId);
       setType(initialQuestion.type);
       setContent(initialQuestion.content);
       setDifficulty(initialQuestion.difficulty);
@@ -58,6 +63,7 @@ export const CreateQuestionModal: React.FC<CreateQuestionModalProps> = ({
       setExplanation(initialQuestion.explanation || '');
     } else {
       setSubjectId(defaultSubjectId);
+      setCategoryId(undefined);
       setType('single');
       setContent('');
       setDifficulty('medium');
@@ -97,9 +103,15 @@ export const CreateQuestionModal: React.FC<CreateQuestionModalProps> = ({
     const diffLevel: DifficultyLevel =
       difficultyScore >= 4.0 ? 'hard' : difficultyScore >= 2.5 ? 'medium' : 'easy';
 
+    const matchedCategory = categories.find((c) => c.id === categoryId || c.categories_name === subjectId);
+    const resolvedCategoryName = matchedCategory?.categories_name || initialQuestion?.category_name || (typeof subjectId === 'string' ? subjectId : '');
+    const resolvedCategoryId = matchedCategory ? matchedCategory.id : (categoryId ?? initialQuestion?.categoryId);
+
     const questionToSave: Question = {
       id: initialQuestion ? initialQuestion.id : `Q-${subjectId.toUpperCase().slice(0, 4)}-${new Date().getFullYear()}${String(Math.floor(1000 + Math.random() * 9000))}`,
       subjectId,
+      categoryId: resolvedCategoryId,
+      category_name: resolvedCategoryName,
       type,
       content: content.trim(),
       difficulty: diffLevel,
@@ -155,20 +167,42 @@ export const CreateQuestionModal: React.FC<CreateQuestionModalProps> = ({
             <div className="flex flex-col gap-1">
               <label className="text-[12px] text-[#191c1e] font-semibold">所屬學科</label>
               <select
-                value={subjectId}
-                onChange={(e) => setSubjectId(e.target.value as SubjectId)}
+                value={categoryId ?? subjectId}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const numVal = Number(val);
+                  if (!isNaN(numVal) && numVal > 0) {
+                    const matched = categories.find((c) => c.id === numVal);
+                    if (matched) {
+                      setCategoryId(matched.id);
+                      setSubjectId(matched.categories_name);
+                      return;
+                    }
+                  }
+                  setSubjectId(val as SubjectId);
+                }}
                 className="bg-[#f2f4f6] text-[#191c1e] text-[13px] px-3 py-2 rounded-lg border border-[#c3c6d7] focus:ring-2 focus:ring-[#004ac6]/40 focus:outline-none"
               >
-                <option value="math">數學 (Math)</option>
-                <option value="chinese">國文 (Chinese)</option>
-                <option value="english">英文 (English)</option>
-                <option value="physics">物理 (Physics)</option>
-                <option value="chemistry">化學 (Chemistry)</option>
-                <option value="biology">生物 (Biology)</option>
-                <option value="astronomy">天文 (Astronomy)</option>
-                <option value="civics">公民 (Civics)</option>
-                <option value="geography">地理 (Geography)</option>
-                <option value="history">歷史 (History)</option>
+                {categories && categories.length > 0 ? (
+                  categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {buildCategoryBreadcrumb(c.id, categories)} (L{c.level})
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value="math">數學 (Math)</option>
+                    <option value="chinese">國文 (Chinese)</option>
+                    <option value="english">英文 (English)</option>
+                    <option value="physics">物理 (Physics)</option>
+                    <option value="chemistry">化學 (Chemistry)</option>
+                    <option value="biology">生物 (Biology)</option>
+                    <option value="astronomy">天文 (Astronomy)</option>
+                    <option value="civics">公民 (Civics)</option>
+                    <option value="geography">地理 (Geography)</option>
+                    <option value="history">歷史 (History)</option>
+                  </>
+                )}
               </select>
             </div>
 

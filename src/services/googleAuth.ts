@@ -7,7 +7,30 @@ import {
   User,
   signOut,
 } from 'firebase/auth';
-import firebaseConfig from '../../firebase-applet-config.json';
+// 優先從環境變數 (NEXT_PUBLIC_FIREBASE_*) 讀取配置，若無則備援讀取本地 JSON
+function resolveFirebaseConfig() {
+  const envApiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+  if (envApiKey) {
+    return {
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || '',
+      appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || '',
+      apiKey: envApiKey,
+      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || '',
+      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || '',
+      messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '',
+      oAuthClientId: process.env.NEXT_PUBLIC_FIREBASE_OAUTH_CLIENT_ID || '',
+    };
+  }
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require('../../firebase-applet-config.json');
+  } catch {
+    return {};
+  }
+}
+
+export const firebaseConfig = resolveFirebaseConfig();
 
 // Initialize Firebase App instance
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];

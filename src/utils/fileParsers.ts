@@ -555,9 +555,12 @@ export async function parseJsonExamFile(file: File): Promise<ExamUploadValidatio
     // 詳解
     const explanation = String(item.Explanation || item.explanation || item.desc || '').trim();
 
-    // 分類
+    // 分類與學科
     const categoryId = Number(item.category_id ?? item.categoryId ?? 1) || 1;
-    const subjectId: SubjectId = 'math';
+    const rawSubject = item.subjectId || item.subject || item.subject_id;
+    const subjectId: SubjectId = rawSubject
+      ? String(rawSubject).trim()
+      : (SUBJECT_PARSE_MAP[String(categoryId)] || String(categoryId) || '未分類');
 
     // 標籤
     const rawTags = item.taqs ?? item.tags;
@@ -1001,8 +1004,8 @@ export async function parseWrongQuestionsExcel(file: File): Promise<{
     const expected = (expIdx !== -1 && r[expIdx]?.trim()) || 'A';
     const explanation = (explIdx !== -1 && r[explIdx]?.trim()) || '';
     const status = (statusIdx !== -1 && r[statusIdx]?.trim()) || '錯誤';
-    const rawSub = (subjectIdx !== -1 && r[subjectIdx]?.trim()) || 'math';
-    const subId = SUBJECT_PARSE_MAP[rawSub] || 'math';
+    const rawSub = (subjectIdx !== -1 && r[subjectIdx]?.trim()) || '';
+    const subId = SUBJECT_PARSE_MAP[rawSub] || rawSub || '未分類';
     const rawTime = (submitTimeIdx !== -1 && r[submitTimeIdx]?.trim()) || '';
     const parsedTs = rawTime
       ? (!isNaN(Number(rawTime)) && Number(rawTime) > 0 ? Number(rawTime) : Date.parse(rawTime) || Date.now())

@@ -3,7 +3,7 @@
 import React from 'react';
 import { Header } from '@/components/layout/Header';
 import { Sidebar, AppPageId } from '@/components/layout/Sidebar';
-import { NotificationItem, Question, SubjectFilter, UserProfile } from '@/types';
+import { NotificationItem, Question, SubjectFilter, UserProfile, CategoryItem } from '@/types';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -15,6 +15,7 @@ interface MainLayoutProps {
   collapsedSidebar: boolean;
   onToggleCollapse: () => void;
   questions: Question[];
+  categories?: CategoryItem[];
   isSheetsConnected: boolean;
   spreadsheetUrl: string | null;
   onSync: () => void;
@@ -36,6 +37,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   collapsedSidebar,
   onToggleCollapse,
   questions,
+  categories = [],
   isSheetsConnected,
   spreadsheetUrl,
   onSync,
@@ -65,6 +67,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
         collapsed={collapsedSidebar}
         onToggleCollapse={onToggleCollapse}
         questions={questions}
+        categories={categories}
         isSheetsConnected={isSheetsConnected}
         spreadsheetUrl={spreadsheetUrl}
         onSync={onSync}

@@ -22,6 +22,7 @@ import { TwoPhaseDeleteModal, DeleteItem } from '@/components/common/TwoPhaseDel
 import { ExamGenerationModal } from '@/app/(dashboard)/exams/_components/ExamFormModal';
 import { QuestionDetailModal } from '@/app/(dashboard)/questions/_components/QuestionDetailModal';
 import { CreateQuestionModal } from '@/app/(dashboard)/questions/_components/QuestionModal';
+import { CategoryManagementView } from '@/app/(dashboard)/categories/_components/CategoryManagementView';
 import { UploadExamModal } from '@/app/(dashboard)/questions/_components/UploadExamModal';
 import { ExamPaperPreviewModal } from '@/app/(dashboard)/exams/_components/ExamPaperPreviewModal';
 import { GlobalSearchModal } from '@/components/layout/GlobalSearchModal';
@@ -43,6 +44,7 @@ import {
   formatSheetTimestamp,
   appendUserToSpreadsheet,
   updateUserInSpreadsheet,
+  saveCategoriesToSpreadsheet,
   getAssignedExam,
 } from '@/services/publicSheet';
 import { getAccessToken, googleSignIn, initAuth } from '@/services/googleAuth';
@@ -1140,6 +1142,41 @@ export default function App() {
     }
   };
 
+  const handleSaveCategories = async (newCategories: CategoryItem[]) => {
+    setCategories(newCategories);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('quiz_custom_categories', JSON.stringify(newCategories));
+      } catch {}
+    }
+    const targetId = connectedSpreadsheetId || envSheetId;
+    const now = formatSheetTimestamp();
+    const logEntry: AuditLog = {
+      id: `#LOG-CAT-${Date.now().toString().slice(-4)}`,
+      action: `更新學科與分類層級 (${newCategories.length} 個節點)`,
+      target: `categories`,
+      operator: currentOperatorName,
+      timestamp: now,
+      status: 'success',
+    };
+
+    if (targetId) {
+      try {
+        let token = await getAccessToken();
+        const res = await saveCategoriesToSpreadsheet(token, targetId, newCategories);
+        await recordAuditLog(logEntry, token);
+        showToast(res.message, 'success');
+      } catch (err: any) {
+        console.error('Error saving categories to Google Sheets:', err);
+        await recordAuditLog(logEntry);
+        showToast(`儲存分類失敗: ${err.message || '請確認試算表寫入權限'}`, 'error');
+      }
+    } else {
+      await recordAuditLog(logEntry);
+      showToast(`分類已更新 (本機暫存)`);
+    }
+  };
+
   const handleUpdateSelfProfile = async (updated: Partial<UserProfile>) => {
     if (!currentUser) return;
     const nowStr = formatSheetTimestamp();
@@ -1346,6 +1383,7 @@ export default function App() {
           {activePage === 'question-bank' && (
             <QuestionBankView
               subjectId={selectedSubject}
+              categories={categories}
               questions={questions}
               selectedQuestionIds={selectedQuestionIds}
               onToggleSelectQuestion={(id) => {
@@ -1367,7 +1405,22 @@ export default function App() {
                 setIsCreateQuestionOpen(true);
               }}
               onDeleteQuestion={handleOpenSingleDeleteQuestion}
+              onNavigateToCategories={() => setActivePage('category-manage')}
               isLoadingData={isLoadingSheetData}
+            />
+          )}
+
+          {/* 管理員介面：學科與分類層級管理 (table: categories) */}
+          {activePage === 'category-manage' && (
+            <CategoryManagementView
+              categories={categories}
+              questions={questions}
+              onSaveCategories={handleSaveCategories}
+              isSyncing={isLoadingSheetData}
+              onNavigateToQuestionBank={(catId, name) => {
+                setSelectedSubject(String(catId));
+                setActivePage('question-bank');
+              }}
             />
           )}
 
@@ -1487,6 +1540,7 @@ export default function App() {
         onSave={handleSaveQuestion}
         initialQuestion={editingQuestion}
         defaultSubjectId={selectedSubject === 'all' ? 'math' : selectedSubject}
+        categories={categories}
       />
 
       {/* Upload Full Exam Paper Modal */}
