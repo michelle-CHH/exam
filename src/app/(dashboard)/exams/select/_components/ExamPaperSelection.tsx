@@ -382,10 +382,8 @@ export function ExamPaperSelection({
                       }
                     })();
 
-                    if (isCompleted) {
-                      if (window.confirm(`試卷「${selectedPaper.title}」先前已作答完成（或作答時間已結束）。\n\n是否清除舊紀錄重新開始測驗？\n（按「確定」重新作答，按「取消」查看上次成績結果）`)) {
-                        clearSession(selectedPaper.id);
-                      }
+                    if (isCompleted && window.confirm(`試卷「${selectedPaper.title}」先前已作答完成（或作答時間已結束）。\n\n是否清除舊紀錄重新開始測驗？\n（按「確定」重新作答，按「取消」查看上次成績結果）`)) {
+                      clearSession(selectedPaper.id);
                     }
 
                     if (onStartExam) {

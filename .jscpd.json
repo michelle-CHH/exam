@@ -1,0 +1,15 @@
+{
+  "threshold": 5,
+  "reporters": ["console"],
+  "ignore": [
+    "**/*.test.{ts,tsx}",
+    "src/test/**",
+    "**/.next/**",
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/coverage/**",
+    "**/jscpd-report/**",
+    "**/vitest-html/**"
+  ],
+  "format": ["javascript", "typescript", "jsx", "tsx"]
+}

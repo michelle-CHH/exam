@@ -27,13 +27,15 @@ const eslintConfig = defineConfig([
       "sonarjs/no-collapsible-if": "warn",
     },
   },
-  // 針對 React 元件 (.tsx)：僅放寬行數限制至 250 行，完整保留 complexity 與 sonarjs/cognitive-complexity
+  // 針對 React 元件 (.tsx)：因 JSX 樹狀結構與畫面互動狀態較多，放寬行數與複雜度門檻，避免過度破碎化
   {
     files: ["**/*.tsx"],
     rules: {
+      "complexity": ["warn", { max: 30 }],
+      "sonarjs/cognitive-complexity": ["warn", 30],
       "max-lines-per-function": [
         "warn",
-        { max: 250, skipBlankLines: true, skipComments: true },
+        { max: 500, skipBlankLines: true, skipComments: true },
       ],
     },
   },

@@ -6,6 +6,13 @@ import {
   DATABASE_TABLE_SCHEMAS,
 } from '@/services/publicSheet';
 import { formatSheetTimestamp } from '@/utils/formatters';
+import {
+  createGoogleSpreadsheet,
+  fetchSpreadsheetMetadata,
+  batchUpdateSpreadsheetRequests,
+  batchUpdateSpreadsheetValues,
+  appendSpreadsheetRowValues,
+} from '@/services/googleSheetClient';
 
 /**
  * 私人 Sheet 存取服務 (動態依登入使用者的 google_sheet_URL 讀寫個人題庫、考卷與作答紀錄)
@@ -43,29 +50,11 @@ export async function createPersonalDatabaseSpreadsheet(
     },
   }));
 
-  const createRes = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      properties: {
-        title,
-        locale: 'zh_TW',
-      },
-      sheets: sheetsPayload,
-    }),
-  });
-
-  if (!createRes.ok) {
-    const errorData = await createRes.json().catch(() => ({}));
-    throw new Error(errorData.error?.message || `建立個人 Google 試算表失敗 (${createRes.status})`);
-  }
-
-  const createdData = await createRes.json();
-  const spreadsheetId = createdData.spreadsheetId;
-  const spreadsheetUrl = createdData.spreadsheetUrl || `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
+  const { spreadsheetId, spreadsheetUrl } = await createGoogleSpreadsheet(
+    accessToken,
+    { title, sheets: sheetsPayload },
+    '建立個人 Google 試算表'
+  );
 
   // 寫入公用格式標題
   const batchData = targetTables.map((tableName) => {
@@ -83,17 +72,13 @@ export async function createPersonalDatabaseSpreadsheet(
     };
   });
 
-  await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      valueInputOption: 'USER_ENTERED',
-      data: batchData,
-    }),
-  });
+  await batchUpdateSpreadsheetValues(
+    accessToken,
+    spreadsheetId,
+    batchData,
+    'USER_ENTERED',
+    '寫入個人試算表欄位標題'
+  );
 
   return { spreadsheetId, spreadsheetUrl };
 }
@@ -114,15 +99,10 @@ export async function ensurePersonalSpreadsheetTablesExist(
     throw new Error('無效的個人 Google 試算表網址 (google_sheet_URL)');
   }
 
-  const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?includeGridData=false`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!metaRes.ok) {
-    const err = await metaRes.json().catch(() => ({}));
-    throw new Error(err.error?.message || `無法讀取個人試算表資訊 (${metaRes.status})`);
-  }
-  const metaData = await metaRes.json();
-  const existingTitles = new Set<string>((metaData.sheets || []).map((s: { properties?: { title?: string } }) => s.properties?.title));
+  const metaData = await fetchSpreadsheetMetadata(accessToken, spreadsheetId, '個人試算表資訊');
+  const existingTitles = new Set<string>(
+    (metaData.sheets || []).map((s) => s.properties?.title || '').filter(Boolean)
+  );
 
   const targetSheets = ['test_bank', 'quiz_bank_publish', 'quiz_bank_unpublish', 'log'];
   const missingSheets = targetSheets.filter((title) => !existingTitles.has(title));
@@ -138,19 +118,12 @@ export async function ensurePersonalSpreadsheetTablesExist(
       },
     }));
 
-    const addRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ requests }),
-    });
-
-    if (!addRes.ok) {
-      const err = await addRes.json().catch(() => ({}));
-      throw new Error(err.error?.message || `自動建立個人試算表分頁失敗 (${addRes.status})`);
-    }
+    await batchUpdateSpreadsheetRequests(
+      accessToken,
+      spreadsheetId,
+      requests,
+      '自動建立個人試算表分頁'
+    );
 
     createdSheets.push(...missingSheets);
     missingSheets.forEach((t) => existingTitles.add(t));
@@ -274,24 +247,13 @@ export async function appendQuestionToUserSheet(
   ];
 
   // 直接使用 REST API 寫入使用者的個人試算表，不走公用 GAS 代理
-  const res = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/test_bank!A:M:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        values: [rowValues],
-      }),
-    }
+  await appendSpreadsheetRowValues(
+    accessToken,
+    spreadsheetId,
+    'test_bank!A:M',
+    rowValues,
+    '寫入題目至個人試算表'
   );
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `寫入題目至個人試算表失敗 (${res.status})`);
-  }
 
   return {
     success: true,
@@ -334,24 +296,13 @@ export async function appendExamToUserSheet(
   ];
 
   // 直接使用 REST API 寫入使用者的個人試算表，不走公用 GAS 代理
-  const res = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${targetSheet}!A:J:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        values: [rowValues],
-      }),
-    }
+  await appendSpreadsheetRowValues(
+    accessToken,
+    spreadsheetId,
+    `${targetSheet}!A:J`,
+    rowValues,
+    '寫入考卷至個人試算表'
   );
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `寫入考卷至個人試算表失敗 (${res.status})`);
-  }
 
   return {
     success: true,

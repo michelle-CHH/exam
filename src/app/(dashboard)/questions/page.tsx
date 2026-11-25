@@ -4,6 +4,8 @@ import React, { useState, useMemo } from 'react';
 import { Question, SubjectFilter, QuestionType, ColumnVisibilityState, CategoryItem } from '@/types';
 import { ColumnVisibilityMenu } from '@/app/(dashboard)/questions/_components/ColumnVisibilityMenu';
 import { buildCategoryBreadcrumb, getAllDescendantCategoryIds } from '@/utils/categoryTree';
+import { SortArrow } from '@/components/common/SortArrow';
+import { TablePagination } from '@/components/common/TablePagination';
 
 const SUBJECT_TITLES: Record<SubjectFilter, string> = {
   all: '題目列表總表 (全部科目)',
@@ -93,30 +95,9 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
     setCurrentPage(1);
   };
 
-  const renderSortArrow = (field: QuestionSortField) => {
-    const isCurrent = sortField === field;
-    const isAsc = isCurrent && sortOrder === 'asc';
-    const isDesc = isCurrent && sortOrder === 'desc';
-
-    return (
-      <span className="inline-flex flex-col -space-y-1 text-[#434655]/50 group-hover:text-[#004ac6] transition-colors ml-0.5">
-        <span
-          className={`material-symbols-outlined text-[12px] leading-none transition-colors ${
-            isAsc ? 'text-[#004ac6] font-bold' : isCurrent ? 'text-[#c3c6d7] opacity-30' : ''
-          }`}
-        >
-          arrow_drop_up
-        </span>
-        <span
-          className={`material-symbols-outlined text-[12px] leading-none transition-colors ${
-            isDesc ? 'text-[#004ac6] font-bold' : isCurrent ? 'text-[#c3c6d7] opacity-30' : ''
-          }`}
-        >
-          arrow_drop_down
-        </span>
-      </span>
-    );
-  };
+  const renderSortArrow = (field: QuestionSortField) => (
+    <SortArrow isCurrent={sortField === field} sortOrder={sortOrder} />
+  );
 
   // Column visibility state
   const [showColumnMenu, setShowColumnMenu] = useState(false);
@@ -826,61 +807,17 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
           </div>
 
           {/* Right page buttons generated dynamically */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={safeCurrentPage === 1}
-              className="p-1 rounded text-[#434655] hover:bg-[#eceef0] disabled:opacity-30 disabled:cursor-not-allowed flex items-center cursor-pointer"
-              type="button"
-            >
-              <span className="material-symbols-outlined text-[18px]">chevron_left</span>
-            </button>
-
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-              <button
-                key={page}
-                onClick={() => setCurrentPage(page)}
-                className={`w-8 h-8 rounded text-[12px] font-semibold cursor-pointer transition-colors ${
-                  safeCurrentPage === page
-                    ? 'bg-[#004ac6] text-white'
-                    : 'hover:bg-[#eceef0] text-[#191c1e]'
-                }`}
-                type="button"
-              >
-                {page}
-              </button>
-            ))}
-
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={safeCurrentPage >= totalPages}
-              className="p-1 rounded text-[#191c1e] hover:bg-[#eceef0] disabled:opacity-30 disabled:cursor-not-allowed flex items-center cursor-pointer"
-              type="button"
-            >
-              <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-            </button>
-
-            {totalPages > 1 && (
-              <div className="flex items-center gap-1 ml-2 text-[#434655] text-[13px]">
-                <span>跳至</span>
-                <input
-                  className="w-12 text-center bg-[#f2f4f6] rounded py-0.5 text-[#191c1e] font-mono text-[12px] border-0 focus:ring-1 focus:ring-[#004ac6]"
-                  max={totalPages}
-                  min={1}
-                  type="number"
-                  value={jumpPage}
-                  onChange={(e) => setJumpPage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      const p = Math.max(1, Math.min(totalPages, Number(jumpPage) || 1));
-                      setCurrentPage(p);
-                    }
-                  }}
-                />
-                <span>頁</span>
-              </div>
-            )}
-          </div>
+          <TablePagination
+            currentPage={safeCurrentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            jumpToPageInput={jumpPage}
+            onJumpToPageInputChange={setJumpPage}
+            onJumpToPageSubmit={() => {
+              const p = Math.max(1, Math.min(totalPages, Number(jumpPage) || 1));
+              setCurrentPage(p);
+            }}
+          />
         </div>
       </div>
     </div>

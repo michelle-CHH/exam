@@ -4,7 +4,7 @@ import { difficultyName, statusLabels, subjectName } from '@/utils/examReport';
 import { extractSpreadsheetId } from '@/utils/sheetParser';
 import { formatSheetTimestamp } from '@/utils/formatters';
 
-export const REVIEW_NOTEBOOK_HEADERS = [
+const REVIEW_NOTEBOOK_HEADERS = [
   'timestamp',
   'exam_title',
   'test_id',

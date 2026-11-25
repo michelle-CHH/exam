@@ -2,24 +2,6 @@ import { Question } from '@/types/question';
 import { ExamPaper } from '@/types/exam';
 import { AuditLog, UserProfile, RoleItem } from '@/types/user';
 
-interface SheetQuestionRow {
-  id: string;
-  test_id: string;
-  question: string;
-  option: string; // JSON string
-  answer: string; // e.g. "A" or "A, C"
-  explanation?: string;
-}
-
-interface SheetExamRow {
-  id: string;
-  title: string;
-  subtitle?: string;
-  question_ids: string;
-  duration_sec: number;
-  passing_score?: number;
-}
-
 export interface CategoryItem {
   id: number;
   categories_name: string;

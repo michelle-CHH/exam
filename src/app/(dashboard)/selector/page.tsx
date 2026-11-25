@@ -135,11 +135,9 @@ export default function QuestionSelectorPage({
   };
 
   const handleSourceChange = (newSource: QuestionSourceScope) => {
-    if (newSource === 'private') {
-      if (!hasBoundSheet) {
-        setIsGuardModalOpen(true);
-        return;
-      }
+    if (newSource === 'private' && !hasBoundSheet) {
+      setIsGuardModalOpen(true);
+      return;
     }
     setSource(newSource);
   };

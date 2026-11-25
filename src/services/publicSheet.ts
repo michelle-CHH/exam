@@ -2,97 +2,73 @@ import { Question, ExamPaper, Exam, SheetTableSchema, ReadSpreadsheetResult, Sub
 import { INITIAL_QUESTIONS, INITIAL_EXAM_PAPERS } from '@/data/initialData';
 import { formatSheetTimestamp } from '@/utils/formatters';
 import { formatOptionsToJsonObject, parseSheetOptionJson, extractSpreadsheetId, getOptionLetter } from '@/utils/sheetParser';
+import {
+  createGoogleSpreadsheet,
+  fetchSpreadsheetMetadata,
+  batchUpdateSpreadsheetRequests,
+  batchUpdateSpreadsheetValues,
+  appendSpreadsheetRowValues,
+} from '@/services/googleSheetClient';
 
 export const ASSIGNED_EXAM_ID = 'assigned-demo';
 
-export async function getAssignedExam(
-  examId: string,
-  extraExams: ExamPaper[] = [],
-  extraQuestions: Question[] = []
-): Promise<Exam | null> {
-  // 試卷查表：優先使用線上試卷 (extraExams: Google Sheet)；若離線或線上無試卷，才讀取 data 內試卷 INITIAL_EXAM_PAPERS
+function buildExamPaperMap(extraExams: ExamPaper[] = []): Map<string, ExamPaper> {
   const examMap = new Map<string, ExamPaper>();
-
-  // 1. 載入預設初始試卷
   for (const e of INITIAL_EXAM_PAPERS) {
-    if (e?.id) {
-      examMap.set(e.id, e);
-    }
+    if (e?.id) examMap.set(e.id, e);
   }
-
-  // 2. 載入線上試卷 (Google Sheet)
   if (extraExams && extraExams.length > 0) {
     for (const e of extraExams) {
-      if (e?.id && !examMap.has(e.id)) {
-        examMap.set(e.id, e);
-      }
+      if (e?.id && !examMap.has(e.id)) examMap.set(e.id, e);
     }
   }
-
-  // 讀取離線公用題庫與考生自選組卷 (localStorage)
   if (typeof window !== 'undefined') {
     try {
       const customExams = JSON.parse(localStorage.getItem('quiz_custom_exams') || '[]');
       for (const e of customExams) {
-        if (e?.id && !examMap.has(e.id)) {
-          examMap.set(e.id, e);
-        }
+        if (e?.id && !examMap.has(e.id)) examMap.set(e.id, e);
       }
       const offlineCacheRaw = localStorage.getItem('offline_public_db_cache');
       if (offlineCacheRaw) {
         const offlineCache = JSON.parse(offlineCacheRaw);
         for (const e of offlineCache.publishedExams || []) {
-          if (e?.id && !examMap.has(e.id)) {
-            examMap.set(e.id, e);
-          }
+          if (e?.id && !examMap.has(e.id)) examMap.set(e.id, e);
         }
       }
     } catch { }
   }
+  return examMap;
+}
 
-  const paper = examMap.get(examId);
-  if (!paper) return null;
-
-  // 題目資料庫查表：優先取線上題庫 (extraQuestions: 來自 Google Sheet) 或離線公用快照
+function buildQuestionMap(extraQuestions: Question[] = []): Map<string, Question> {
   const questionMap = new Map<string, Question>();
-
-  // 1. 載入預設初始題庫 (含標準答案與解析)
   for (const q of INITIAL_QUESTIONS) {
-    if (q?.id) {
-      questionMap.set(q.id, q);
-    }
+    if (q?.id) questionMap.set(q.id, q);
   }
-
-  // 2. 載入線上題庫 (Google Sheet)
   if (extraQuestions && extraQuestions.length > 0) {
     for (const q of extraQuestions) {
-      if (q?.id && !questionMap.has(q.id)) {
-        questionMap.set(q.id, q);
-      }
+      if (q?.id && !questionMap.has(q.id)) questionMap.set(q.id, q);
     }
   }
-
-  // 若題庫為空，嘗試自離線公用快照與自建題庫載入
   if (typeof window !== 'undefined') {
     try {
       const customQuestions = JSON.parse(localStorage.getItem('quiz_custom_questions') || '[]');
       for (const q of customQuestions) {
-        if (q?.id && !questionMap.has(q.id)) {
-          questionMap.set(q.id, q);
-        }
+        if (q?.id && !questionMap.has(q.id)) questionMap.set(q.id, q);
       }
       const offlineCacheRaw = localStorage.getItem('offline_public_db_cache');
       if (offlineCacheRaw) {
         const offlineCache = JSON.parse(offlineCacheRaw);
         for (const q of offlineCache.questions || []) {
-          if (q?.id && !questionMap.has(q.id)) {
-            questionMap.set(q.id, q);
-          }
+          if (q?.id && !questionMap.has(q.id)) questionMap.set(q.id, q);
         }
       }
     } catch { }
   }
+  return questionMap;
+}
 
+function resolveMatchedQuestions(paper: ExamPaper, questionMap: Map<string, Question>): Question[] {
   const questionIds = Array.from(new Set(paper.questionIds || []));
   let matchedQuestions: Question[] = [];
 
@@ -114,12 +90,25 @@ export async function getAssignedExam(
   }
 
   const seenIds = new Set<string>();
-  const uniqueMatchedQuestions = matchedQuestions.filter((q) => {
+  return matchedQuestions.filter((q) => {
     if (!q || !q.id) return false;
     if (seenIds.has(q.id)) return false;
     seenIds.add(q.id);
     return true;
   });
+}
+
+export async function getAssignedExam(
+  examId: string,
+  extraExams: ExamPaper[] = [],
+  extraQuestions: Question[] = []
+): Promise<Exam | null> {
+  const examMap = buildExamPaperMap(extraExams);
+  const paper = examMap.get(examId);
+  if (!paper) return null;
+
+  const questionMap = buildQuestionMap(extraQuestions);
+  const uniqueMatchedQuestions = resolveMatchedQuestions(paper, questionMap);
 
   const examQuestions = uniqueMatchedQuestions.map((q, idx) => {
     const rawOptions =
@@ -259,9 +248,7 @@ export const DATABASE_TABLE_SCHEMAS: Record<string, SheetTableSchema> = {
   },
 };
 
-export const INITIAL_CATEGORIES_DATA: CategoryItem[] = [];
-
-export const SUBJECT_TO_CATEGORY_ID: Record<string, number> = {};
+const INITIAL_CATEGORIES_DATA: CategoryItem[] = [];
 
 export const CATEGORY_ID_TO_SUBJECT: Record<number, SubjectId> = {};
 
@@ -429,49 +416,23 @@ export async function createFullDatabaseSpreadsheet(
     },
   }));
 
-  const createRes = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      properties: {
-        title,
-        locale: 'zh_TW',
-        autoRecalc: 'ON_CHANGE',
-      },
-      sheets: sheetsPayload,
-    }),
-  });
-
-  if (!createRes.ok) {
-    const errorData = await createRes.json().catch(() => ({}));
-    throw new Error(errorData.error?.message || `建立 Google 試算表失敗 (${createRes.status})`);
-  }
-
-  const createdData = await createRes.json();
-  const spreadsheetId = createdData.spreadsheetId;
-  const spreadsheetUrl = createdData.spreadsheetUrl || `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
+  const { spreadsheetId, spreadsheetUrl } = await createGoogleSpreadsheet(
+    accessToken,
+    { title, sheets: sheetsPayload, autoRecalc: 'ON_CHANGE' },
+    '建立 Google 試算表'
+  );
 
   const batchData = generateBatchValues(spreadsheetUrl, currentQuestions, currentExams);
 
-  const writeRes = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        valueInputOption: 'USER_ENTERED',
-        data: batchData,
-      }),
-    }
-  );
-
-  if (!writeRes.ok) {
+  try {
+    await batchUpdateSpreadsheetValues(
+      accessToken,
+      spreadsheetId,
+      batchData,
+      'USER_ENTERED',
+      '初始化試算表資料'
+    );
+  } catch {
     console.warn('Initial data write returned warning, data may be partially filled.');
   }
 
@@ -670,15 +631,8 @@ export async function ensureSpreadsheetTablesExist(
   accessToken: string,
   spreadsheetId: string
 ): Promise<string[]> {
-  const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?includeGridData=false`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!metaRes.ok) {
-    const err = await metaRes.json().catch(() => ({}));
-    throw new Error(err.error?.message || `無法讀取試算表資訊 (${metaRes.status})`);
-  }
-  const metaData = await metaRes.json();
-  const existingTitles = new Set((metaData.sheets || []).map((s: { properties?: { title?: string } }) => s.properties?.title));
+  const metaData = await fetchSpreadsheetMetadata(accessToken, spreadsheetId, '試算表資訊');
+  const existingTitles = new Set((metaData.sheets || []).map((s) => s.properties?.title || '').filter(Boolean));
 
   const targetSheets = [
     'users',
@@ -701,19 +655,7 @@ export async function ensureSpreadsheetTablesExist(
       },
     }));
 
-    const addRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ requests }),
-    });
-
-    if (!addRes.ok) {
-      const err = await addRes.json().catch(() => ({}));
-      throw new Error(err.error?.message || `自動建立工作表失敗 (${addRes.status})`);
-    }
+    await batchUpdateSpreadsheetRequests(accessToken, spreadsheetId, requests, '自動建立工作表');
 
     // Write headers for newly created sheets (such as 'log')
     const headerData = missingSheets
@@ -823,7 +765,7 @@ export async function syncAllToSpreadsheet(
 
 type SheetRowValues = (string | number | boolean | null | undefined)[][];
 
-export function parseCategoriesFromSheetRows(catRows: SheetRowValues): CategoryItem[] {
+function parseCategoriesFromSheetRows(catRows: SheetRowValues): CategoryItem[] {
   const categories: CategoryItem[] = [];
   if (!catRows || catRows.length <= 1) return categories;
 
@@ -846,7 +788,7 @@ export function parseCategoriesFromSheetRows(catRows: SheetRowValues): CategoryI
   return categories;
 }
 
-export function parseQuestionsFromSheetRows(
+function parseQuestionsFromSheetRows(
   testBankRows: SheetRowValues,
   categories: CategoryItem[] = []
 ): Question[] {
@@ -964,7 +906,7 @@ export function parseQuestionsFromSheetRows(
   return questions;
 }
 
-export function parseExamsFromSheetRows(
+function parseExamsFromSheetRows(
   examRows: SheetRowValues,
   status: 'published' | 'draft',
   categories: CategoryItem[] = []
@@ -1015,7 +957,7 @@ export function parseExamsFromSheetRows(
   return exams;
 }
 
-export function parseAuditLogsFromSheetRows(logRows: SheetRowValues): AuditLog[] {
+function parseAuditLogsFromSheetRows(logRows: SheetRowValues): AuditLog[] {
   const auditLogs: AuditLog[] = [];
   if (!logRows || logRows.length <= 1) return auditLogs;
 
@@ -1873,24 +1815,13 @@ export async function appendQuestionToSpreadsheet(
 
   await ensureSpreadsheetTablesExist(accessToken, spreadsheetId);
 
-  const res = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/test_bank!A:N:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        values: [rowValues],
-      }),
-    }
+  await appendSpreadsheetRowValues(
+    accessToken,
+    spreadsheetId,
+    'test_bank!A:N',
+    rowValues,
+    '寫入題目至 Google 試算表'
   );
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `寫入題目至 Google 試算表失敗 (${res.status})`);
-  }
 
   return {
     success: true,
@@ -2078,24 +2009,13 @@ export async function appendExamToSpreadsheet(
 
   await ensureSpreadsheetTablesExist(accessToken, spreadsheetId);
 
-  const res = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${targetSheet}!A:J:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        values: [rowValues],
-      }),
-    }
+  await appendSpreadsheetRowValues(
+    accessToken,
+    spreadsheetId,
+    `${targetSheet}!A:J`,
+    rowValues,
+    '寫入考卷至 Google 試算表'
   );
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `寫入考卷至 Google 試算表失敗 (${res.status})`);
-  }
 
   return {
     success: true,

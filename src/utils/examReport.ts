@@ -22,11 +22,11 @@ export interface AnalysisGroup {
 export const statusLabels: Record<ReviewStatus, string> = {
   correct: '答對', wrong: '答錯', unanswered: '未作答', ungraded: '無標準答案',
 };
-export const subjectLabels: Record<string, string> = {
+const subjectLabels: Record<string, string> = {
   chinese: '國文', english: '英文', math: '數學', biology: '生物', physics: '物理',
   chemistry: '化學', astronomy: '地球科學', civics: '公民', geography: '地理', history: '歷史',
 };
-export const difficultyLabels: Record<string, string> = { easy: '簡單', medium: '中等', hard: '困難' };
+const difficultyLabels: Record<string, string> = { easy: '簡單', medium: '中等', hard: '困難' };
 export const subjectName = (q: ExamQuestion) => q.subjectName || subjectLabels[q.subjectId] || '未分類';
 export const difficultyName = (q: ExamQuestion) => difficultyLabels[q.difficulty] || '未標示';
 

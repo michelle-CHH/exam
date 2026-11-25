@@ -798,6 +798,17 @@ export default function App() {
     await recordAuditLog(logEntry, token);
   };
 
+  const acquireGoogleTokenForWrite = async () => {
+    const hasGas = Boolean(getEnvConfiguredScriptUrl());
+    let token = await getAccessToken();
+    if (!hasGas && !token) {
+      showToast('正在開啟 Google 授權視窗，請允許寫入試算表...', 'info');
+      const signRes = await googleSignIn();
+      token = signRes?.accessToken || null;
+    }
+    return { token, hasGas };
+  };
+
   // Exam created from modal - directly written to Google Sheet quiz_bank_publish or quiz_bank_unpublish
   const handleExamCreated = async (newExam: ExamPaper) => {
     setExamPapers((prev) => [newExam, ...prev]);
@@ -823,13 +834,7 @@ export default function App() {
     }
 
     try {
-      const hasGas = Boolean(getEnvConfiguredScriptUrl());
-      let token = await getAccessToken();
-      if (!hasGas && !token) {
-        showToast('正在開啟 Google 授權視窗，請允許寫入試算表...', 'info');
-        const signRes = await googleSignIn();
-        token = signRes?.accessToken || null;
-      }
+      const { token, hasGas } = await acquireGoogleTokenForWrite();
 
       if (hasGas || token) {
         showToast(`正在將考卷 ${newExam.id} 寫入 Google 試算表 (${targetTable})...`, 'info');
@@ -879,13 +884,7 @@ export default function App() {
     }
 
     try {
-      const hasGas = Boolean(getEnvConfiguredScriptUrl());
-      let token = await getAccessToken();
-      if (!hasGas && !token) {
-        showToast('正在開啟 Google 授權視窗，請允許寫入試算表...', 'info');
-        const signRes = await googleSignIn();
-        token = signRes?.accessToken || null;
-      }
+      const { token, hasGas } = await acquireGoogleTokenForWrite();
 
       if (hasGas || token) {
         showToast(`正在將題目 ${q.id} 寫入 Google 試算表 (test_bank)...`, 'info');
@@ -983,13 +982,7 @@ export default function App() {
 
     if (targetId) {
       try {
-        const hasGas = Boolean(getEnvConfiguredScriptUrl());
-        let token = await getAccessToken();
-        if (!hasGas && !token) {
-          showToast('正在開啟 Google 授權視窗，請允許寫入試算表...', 'info');
-          const signRes = await googleSignIn();
-          token = signRes?.accessToken || null;
-        }
+        const { token, hasGas } = await acquireGoogleTokenForWrite();
 
         if (hasGas || token) {
           const isExisting = usersList.some((u) => u.identifier === targetUser.identifier || u.uuid === targetUser.uuid);

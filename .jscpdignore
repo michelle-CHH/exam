@@ -1,0 +1,9 @@
+**/*.test.ts
+**/*.test.tsx
+src/test/**
+.next/**
+node_modules/**
+dist/**
+coverage/**
+jscpd-report/**
+vitest-html/**

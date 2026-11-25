@@ -3,6 +3,8 @@
 import React, { useState, useMemo } from 'react';
 import { ExamPaper, ExamColumnVisibilityState } from '@/types';
 import { ExamColumnVisibilityMenu } from '@/app/(dashboard)/exams/_components/ExamColumnVisibilityMenu';
+import { SortArrow } from '@/components/common/SortArrow';
+import { TablePagination } from '@/components/common/TablePagination';
 
 interface ExamPapersViewProps {
   examPapers?: ExamPaper[];
@@ -85,30 +87,9 @@ export const ExamPapersView: React.FC<ExamPapersViewProps> = ({
     setCurrentPage(1);
   };
 
-  const renderSortArrow = (field: ExamSortField) => {
-    const isCurrent = sortField === field;
-    const isAsc = isCurrent && sortOrder === 'asc';
-    const isDesc = isCurrent && sortOrder === 'desc';
-
-    return (
-      <span className="inline-flex flex-col -space-y-1 text-[#434655]/50 group-hover:text-[#004ac6] transition-colors ml-0.5">
-        <span
-          className={`material-symbols-outlined text-[12px] leading-none transition-colors ${
-            isAsc ? 'text-[#004ac6] font-bold' : isCurrent ? 'text-[#c3c6d7] opacity-30' : ''
-          }`}
-        >
-          arrow_drop_up
-        </span>
-        <span
-          className={`material-symbols-outlined text-[12px] leading-none transition-colors ${
-            isDesc ? 'text-[#004ac6] font-bold' : isCurrent ? 'text-[#c3c6d7] opacity-30' : ''
-          }`}
-        >
-          arrow_drop_down
-        </span>
-      </span>
-    );
-  };
+  const renderSortArrow = (field: ExamSortField) => (
+    <SortArrow isCurrent={sortField === field} sortOrder={sortOrder} />
+  );
 
   // Modals for publish checking & confirmation
   const [validationFailures, setValidationFailures] = useState<ExamValidationReport[] | null>(null);
@@ -964,38 +945,11 @@ export const ExamPapersView: React.FC<ExamPapersViewProps> = ({
             <span className="font-mono font-semibold text-[#191c1e]">{endIdx}</span> 筆，共{' '}
             <span className="font-mono font-semibold text-[#191c1e]">{totalExams}</span> 筆試卷
           </div>
-          <div className="flex items-center gap-1 mt-2 sm:mt-0">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={safeCurrentPage === 1}
-              className="p-1 rounded hover:bg-[#eceef0] text-[#434655] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-              type="button"
-            >
-              <span className="material-symbols-outlined text-[18px]">chevron_left</span>
-            </button>
-
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-              <button
-                key={page}
-                onClick={() => setCurrentPage(page)}
-                className={`w-8 h-8 rounded font-mono text-[12px] font-medium cursor-pointer transition-colors ${
-                  safeCurrentPage === page ? 'bg-[#004ac6] text-white' : 'hover:bg-[#eceef0] text-[#191c1e]'
-                }`}
-                type="button"
-              >
-                {page}
-              </button>
-            ))}
-
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={safeCurrentPage >= totalPages}
-              className="p-1 rounded hover:bg-[#eceef0] text-[#191c1e] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-              type="button"
-            >
-              <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-            </button>
-          </div>
+          <TablePagination
+            currentPage={safeCurrentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+          />
         </div>
       </div>
 
