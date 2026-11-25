@@ -23,7 +23,7 @@ export default function QuestionUploadPage({
       const parsed = await parseQuestionsFromUpload(file);
       setPreviewList((prev) => [...prev, ...parsed]);
       setStatusMessage(`已成功解析檔案，新增 ${parsed.length} 道試題至待匯入清單。`);
-    } catch (err: any) {
+    } catch (err) {
       alert(err?.message || '解析題目檔案失敗，請確認檔案格式是否正確。');
     }
   };
@@ -32,7 +32,7 @@ export default function QuestionUploadPage({
     if (previewList.length === 0) return;
     try {
       await downloadQuestionsAsGoogleSheetExcel(previewList);
-    } catch (err: any) {
+    } catch (err) {
       alert('下載 Excel 檔案失敗：' + (err?.message || '未知錯誤'));
     }
   };

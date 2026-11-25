@@ -27,11 +27,18 @@ export const TwoPhaseDeleteModal: React.FC<TwoPhaseDeleteModalProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const successBtnRef = useRef<HTMLButtonElement>(null);
 
+  const handleFinish = () => {
+    onConfirmSuccess();
+    onClose();
+  };
+
   useEffect(() => {
     if (isOpen) {
-      setPhase('confirm');
-      setInputValue('');
-      setAuditId(`#LOG-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`);
+      queueMicrotask(() => {
+        setPhase('confirm');
+        setInputValue('');
+        setAuditId(`#LOG-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`);
+      });
       setTimeout(() => {
         inputRef.current?.focus();
       }, 60);
@@ -71,11 +78,6 @@ export const TwoPhaseDeleteModal: React.FC<TwoPhaseDeleteModalProps> = ({
   if (!isOpen) return null;
 
   const isMatched = inputValue.trim().toUpperCase() === 'DELETE';
-
-  const handleFinish = () => {
-    onConfirmSuccess();
-    onClose();
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

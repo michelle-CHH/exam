@@ -7,7 +7,7 @@ export interface SheetRequestOptions extends RequestInit {
 /**
  * Base Fetch connector for Google Sheets REST API v4
  */
-export async function googleSheetsRequest<T = any>(
+export async function googleSheetsRequest<T = unknown>(
   endpoint: string,
   { accessToken, headers, ...restOptions }: SheetRequestOptions
 ): Promise<T> {

@@ -118,7 +118,7 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
     history: '社會 (歷史)',
   };
 
-  const subjectShortNames: Record<SubjectId, string> = {
+  const subjectShortNames: Record<string, string> = {
     math: '數學',
     chinese: '國文',
     english: '英文',

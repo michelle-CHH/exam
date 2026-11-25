@@ -58,9 +58,9 @@ export async function GET(request?: Request): Promise<Response> {
         'Content-Type': 'text/plain; charset=utf-8',
       },
     });
-  } catch (err: any) {
+  } catch (err) {
     return NextResponse.json(
-      { ok: false, success: false, error: err?.message || '伺服器端讀取 Google Sheet 失敗' },
+      { ok: false, success: false, error: (err as Error)?.message || '伺服器端讀取 Google Sheet 失敗' },
       { status: 500 }
     );
   }
@@ -101,9 +101,9 @@ export async function POST(request: Request): Promise<Response> {
       { ok: gasRes.ok, success: data?.success ?? gasRes.ok, data, error: data?.error },
       { status: gasRes.status }
     );
-  } catch (err: any) {
+  } catch (err) {
     return NextResponse.json(
-      { ok: false, success: false, error: err?.message || 'BFF 代理轉發至 GAS 失敗' },
+      { ok: false, success: false, error: (err as Error)?.message || 'BFF 代理轉發至 GAS 失敗' },
       { status: 500 }
     );
   }

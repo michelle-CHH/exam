@@ -39,45 +39,47 @@ export const CreateQuestionModal: React.FC<CreateQuestionModalProps> = ({
   const [explanation, setExplanation] = useState('');
 
   useEffect(() => {
-    if (initialQuestion) {
-      setSubjectId(initialQuestion.subjectId);
-      setCategoryId(initialQuestion.categoryId);
-      setType(initialQuestion.type);
-      setContent(initialQuestion.content);
-      setDifficulty(initialQuestion.difficulty);
-      setDifficultyScore(initialQuestion.difficultyScore ?? (initialQuestion.difficulty === 'hard' ? 4 : initialQuestion.difficulty === 'medium' ? 3 : 2));
-      setPoints(initialQuestion.points);
-      setTime(initialQuestion.time ?? 5);
-      setTagsInput(initialQuestion.tags.join(', '));
-      setOptA(initialQuestion.options?.[0] || '');
-      setOptB(initialQuestion.options?.[1] || '');
-      setOptC(initialQuestion.options?.[2] || '');
-      setOptD(initialQuestion.options?.[3] || '');
-      
-      let ans = initialQuestion.correctAnswer || '';
-      if (initialQuestion.type === 'true_false') {
-        const u = ans.trim().toUpperCase();
-        ans = (u === 'B' || u === '錯誤' || u.includes('FALSE') || u.includes('錯')) ? 'B' : 'A';
+    queueMicrotask(() => {
+      if (initialQuestion) {
+        setSubjectId(initialQuestion.subjectId);
+        setCategoryId(initialQuestion.categoryId);
+        if (initialQuestion.type) setType(initialQuestion.type);
+        if (initialQuestion.content) setContent(initialQuestion.content);
+        if (initialQuestion.difficulty) setDifficulty(initialQuestion.difficulty);
+        setDifficultyScore(initialQuestion.difficultyScore ?? (initialQuestion.difficulty === 'hard' ? 4 : initialQuestion.difficulty === 'medium' ? 3 : 2));
+        setPoints(initialQuestion.points);
+        setTime(initialQuestion.time ?? 5);
+        setTagsInput((initialQuestion.tags || []).join(', '));
+        setOptA(initialQuestion.options?.[0] || '');
+        setOptB(initialQuestion.options?.[1] || '');
+        setOptC(initialQuestion.options?.[2] || '');
+        setOptD(initialQuestion.options?.[3] || '');
+        
+        let ans = initialQuestion.correctAnswer || '';
+        if (initialQuestion.type === 'true_false') {
+          const u = ans.trim().toUpperCase();
+          ans = (u === 'B' || u === '錯誤' || u.includes('FALSE') || u.includes('錯')) ? 'B' : 'A';
+        }
+        setCorrectAnswer(ans);
+        setExplanation(initialQuestion.explanation || '');
+      } else {
+        setSubjectId(defaultSubjectId);
+        setCategoryId(undefined);
+        setType('single');
+        setContent('');
+        setDifficulty('medium');
+        setDifficultyScore(3);
+        setPoints(6);
+        setTime(5);
+        setTagsInput('');
+        setOptA('');
+        setOptB('');
+        setOptC('');
+        setOptD('');
+        setCorrectAnswer('');
+        setExplanation('');
       }
-      setCorrectAnswer(ans);
-      setExplanation(initialQuestion.explanation || '');
-    } else {
-      setSubjectId(defaultSubjectId);
-      setCategoryId(undefined);
-      setType('single');
-      setContent('');
-      setDifficulty('medium');
-      setDifficultyScore(3);
-      setPoints(6);
-      setTime(5);
-      setTagsInput('');
-      setOptA('');
-      setOptB('');
-      setOptC('');
-      setOptD('');
-      setCorrectAnswer('');
-      setExplanation('');
-    }
+    });
   }, [initialQuestion, defaultSubjectId, isOpen]);
 
   if (!isOpen) return null;

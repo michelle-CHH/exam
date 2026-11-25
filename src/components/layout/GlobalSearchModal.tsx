@@ -23,7 +23,9 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setSearchTerm('');
+      queueMicrotask(() => {
+        setSearchTerm('');
+      });
       setTimeout(() => inputRef.current?.focus(), 60);
     }
   }, [isOpen]);

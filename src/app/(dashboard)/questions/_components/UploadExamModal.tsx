@@ -43,15 +43,17 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) {
-      setSelectedFile(null);
-      setIsDragging(false);
-      setIsChecking(false);
-      setValidationResult(null);
-      setIsPreviewExpanded(false);
-      setUploadSucceeded(false);
-      setIsSyncing(false);
-      setSyncProgress({ completed: 0, total: 0, message: '' });
-      setSyncError(null);
+      queueMicrotask(() => {
+        setSelectedFile(null);
+        setIsDragging(false);
+        setIsChecking(false);
+        setValidationResult(null);
+        setIsPreviewExpanded(false);
+        setUploadSucceeded(false);
+        setIsSyncing(false);
+        setSyncProgress({ completed: 0, total: 0, message: '' });
+        setSyncError(null);
+      });
     }
   }, [isOpen]);
 
@@ -69,7 +71,7 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
     try {
       const result = await validateAndParseExamFile(file);
       setValidationResult(result);
-    } catch (err: any) {
+    } catch (err) {
       setValidationResult({
         isValid: false,
         questions: [],
@@ -188,7 +190,7 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
       }
       setUploadSucceeded(true);
       onClose();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Upload sync error:', err);
       setSyncError(err?.message || '同步寫入 Google 試算表失敗，請稍後重試');
     } finally {
@@ -231,19 +233,18 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
               <div
                 className="bg-[#004ac6] h-full transition-all duration-300 rounded-full"
                 style={{
-                  width: `${
-                    syncProgress.total > 0
-                      ? Math.min(100, Math.round((syncProgress.completed / syncProgress.total) * 100))
-                      : 15
-                  }%`,
+                  width: `${syncProgress.total > 0
+                    ? Math.min(100, Math.round((syncProgress.completed / syncProgress.total) * 100))
+                    : 15
+                    }%`,
                 }}
               />
             </div>
             <div className="text-[12px] font-semibold text-[#004ac6]">
               {syncProgress.total > 0
                 ? `${syncProgress.completed} / ${syncProgress.total} 題 (${Math.round(
-                    (syncProgress.completed / syncProgress.total) * 100
-                  )}%)`
+                  (syncProgress.completed / syncProgress.total) * 100
+                )}%)`
                 : '處理中...'}
             </div>
             <p className="text-[11px] text-[#747785] mt-3">
@@ -306,17 +307,16 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            className={`border-2 border-dashed rounded-xl p-5 flex flex-col items-center justify-center gap-3 text-center transition-colors cursor-pointer ${
-              isDragging
-                ? 'border-[#004ac6] bg-[#dbe1ff]/30'
-                : hasValidationFailed
+            className={`border-2 border-dashed rounded-xl p-5 flex flex-col items-center justify-center gap-3 text-center transition-colors cursor-pointer ${isDragging
+              ? 'border-[#004ac6] bg-[#dbe1ff]/30'
+              : hasValidationFailed
                 ? 'border-[#ba1a1a]/60 bg-[#fff8f7]'
                 : uploadSucceeded
-                ? 'border-[#137333]/60 bg-[#e6f4ea]/40'
-                : selectedFile
-                ? 'border-[#004ac6]/60 bg-[#f8f9ff]'
-                : 'border-[#c3c6d7] bg-[#f8f9fa] hover:border-[#004ac6]/60 hover:bg-[#f2f4f6]'
-            }`}
+                  ? 'border-[#137333]/60 bg-[#e6f4ea]/40'
+                  : selectedFile
+                    ? 'border-[#004ac6]/60 bg-[#f8f9ff]'
+                    : 'border-[#c3c6d7] bg-[#f8f9fa] hover:border-[#004ac6]/60 hover:bg-[#f2f4f6]'
+              }`}
           >
             {selectedFile ? (
               <div className="flex items-center justify-between w-full px-3.5 py-2.5 bg-white rounded-lg border border-[#c3c6d7]/50 shadow-2xs">
@@ -487,13 +487,12 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
                           <span className="w-5 h-5 rounded-full bg-[#e8edff] text-[#004ac6] font-mono font-bold flex items-center justify-center text-[10px]">
                             {idx + 1}
                           </span>
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            q.type === 'single'
-                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                              : q.type === 'multiple'
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${q.type === 'single'
+                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                            : q.type === 'multiple'
                               ? 'bg-purple-50 text-purple-700 border border-purple-200'
                               : 'bg-amber-50 text-amber-700 border border-amber-200'
-                          }`}>
+                            }`}>
                             {q.type === 'single' ? '單選題' : q.type === 'multiple' ? '多選題' : '是非題'}
                           </span>
                           <span className="text-[#434655] font-mono text-[11px]">{q.points} 分</span>

@@ -47,8 +47,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     const savedRemember = localStorage.getItem(REMEMBER_ACCOUNT_KEY) === 'true';
     const savedIdentifier = localStorage.getItem(REMEMBERED_IDENTIFIER_KEY) || '';
     if (savedRemember && savedIdentifier) {
-      setRememberAccount(true);
-      setIdentifier(savedIdentifier);
+      queueMicrotask(() => {
+        setRememberAccount(true);
+        setIdentifier(savedIdentifier);
+      });
     }
   }, []);
 
@@ -121,7 +123,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         user: result.user,
         roleInfo: result.roleInfo,
       });
-    } catch (err: any) {
+    } catch (err) {
       setErrorMessage(
         err?.message || '連線至 Google Sheet 資料庫驗證失敗，請檢查網路或試算表設定'
       );
@@ -134,9 +136,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     <div className="min-h-screen bg-gradient-to-br from-[#eef2ff] via-[#f8f9fa] to-[#e0e7ff] flex flex-col justify-center items-center p-4 sm:p-6 font-sans antialiased">
       {/* Main Card Container */}
       <div
-        className={`w-full ${
-          activeTab === 'guide' ? 'max-w-3xl' : 'max-w-md'
-        } bg-white rounded-2xl shadow-xl border border-[#c3c6d7]/40 overflow-hidden transition-all duration-200`}
+        className={`w-full ${activeTab === 'guide' ? 'max-w-3xl' : 'max-w-md'
+          } bg-white rounded-2xl shadow-xl border border-[#c3c6d7]/40 overflow-hidden transition-all duration-200`}
       >
         {/* Top Brand Header */}
         <div className="bg-[#004ac6] px-6 py-6 text-white">
@@ -164,11 +165,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('login')}
-              className={`py-2 px-3 rounded-lg text-[13px] font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                activeTab === 'login'
-                  ? 'bg-white text-[#004ac6] shadow-xs'
-                  : 'text-white/85 hover:text-white hover:bg-white/10'
-              }`}
+              className={`py-2 px-3 rounded-lg text-[13px] font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${activeTab === 'login'
+                ? 'bg-white text-[#004ac6] shadow-xs'
+                : 'text-white/85 hover:text-white hover:bg-white/10'
+                }`}
             >
               <span className="material-symbols-outlined text-[18px]">login</span>
               <span>帳號登入</span>
@@ -176,11 +176,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('guide')}
-              className={`py-2 px-3 rounded-lg text-[13px] font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                activeTab === 'guide'
-                  ? 'bg-white text-[#004ac6] shadow-xs'
-                  : 'text-white/85 hover:text-white hover:bg-white/10'
-              }`}
+              className={`py-2 px-3 rounded-lg text-[13px] font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${activeTab === 'guide'
+                ? 'bg-white text-[#004ac6] shadow-xs'
+                : 'text-white/85 hover:text-white hover:bg-white/10'
+                }`}
             >
               <span className="material-symbols-outlined text-[18px]">menu_book</span>
               <span>系統說明</span>
@@ -253,12 +252,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 </div>
                 {(verifiedData.roleInfo?.description ||
                   verifiedData.user.roleDescription) && (
-                  <div className="pt-2 border-t border-[#c3c6d7]/30 text-[12px] text-[#434655]">
-                    <span className="font-semibold text-[#191c1e]">角色權限描述：</span>
-                    {verifiedData.roleInfo?.description ||
-                      verifiedData.user.roleDescription}
-                  </div>
-                )}
+                    <div className="pt-2 border-t border-[#c3c6d7]/30 text-[12px] text-[#434655]">
+                      <span className="font-semibold text-[#191c1e]">角色權限描述：</span>
+                      {verifiedData.roleInfo?.description ||
+                        verifiedData.user.roleDescription}
+                    </div>
+                  )}
               </div>
 
               <div className="flex items-center gap-2.5 pt-1">

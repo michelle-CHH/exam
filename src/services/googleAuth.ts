@@ -84,10 +84,11 @@ export const googleSignIn = async (): Promise<{ user: User | null; accessToken: 
         cachedAccessToken = credential.accessToken;
         return { user: result.user, accessToken: cachedAccessToken };
       }
-    } catch (fbErr: any) {
+    } catch (fbErr: unknown) {
       // 若為 unauthorized-domain 或 popup-blocked，切換至 Google Identity Services (GIS)
-      console.warn('Firebase Auth popup failed, attempting Google Identity Services (GIS):', fbErr?.code || fbErr?.message);
-      if (fbErr?.code === 'auth/unauthorized-domain' || fbErr?.code === 'auth/popup-blocked' || fbErr?.code === 'auth/operation-not-allowed') {
+      const errObj = fbErr as { code?: string; message?: string };
+      console.warn('Firebase Auth popup failed, attempting Google Identity Services (GIS):', errObj?.code || errObj?.message);
+      if (errObj?.code === 'auth/unauthorized-domain' || errObj?.code === 'auth/popup-blocked' || errObj?.code === 'auth/operation-not-allowed') {
         const gisToken = await requestAccessTokenViaGis();
         if (gisToken) {
           cachedAccessToken = gisToken;
@@ -98,13 +99,38 @@ export const googleSignIn = async (): Promise<{ user: User | null; accessToken: 
     }
 
     return null;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Google Sign-in failed:', error);
     throw error;
   } finally {
     isSigningIn = false;
   }
 };
+
+interface GisTokenResponse {
+  access_token?: string;
+  error?: string;
+  error_description?: string;
+}
+
+interface GisTokenClient {
+  requestAccessToken: () => void;
+}
+
+interface GisWindow extends Window {
+  google?: {
+    accounts?: {
+      oauth2?: {
+        initTokenClient: (config: {
+          client_id: string;
+          scope: string;
+          callback: (resp: GisTokenResponse) => void;
+          error_callback?: (err: { message?: string }) => void;
+        }) => GisTokenClient;
+      };
+    };
+  };
+}
 
 /**
  * 透過 Google Identity Services (GIS) 直接向 Google 取得 OAuth2 Access Token
@@ -118,8 +144,10 @@ export const requestAccessTokenViaGis = async (): Promise<string | null> => {
     throw new Error('未配置 Google oAuthClientId');
   }
 
+  const gisWin = window as unknown as GisWindow;
+
   // 動態加載 GIS SDK
-  if (typeof (window as any).google?.accounts?.oauth2 === 'undefined') {
+  if (typeof gisWin.google?.accounts?.oauth2 === 'undefined') {
     await new Promise<void>((resolve, reject) => {
       const existing = document.getElementById('google-gis-sdk');
       if (existing) {
@@ -140,11 +168,14 @@ export const requestAccessTokenViaGis = async (): Promise<string | null> => {
 
   return new Promise((resolve, reject) => {
     try {
-      const google = (window as any).google;
+      const google = gisWin.google;
+      if (!google?.accounts?.oauth2) {
+        throw new Error('Google Identity Services SDK 未就緒');
+      }
       const client = google.accounts.oauth2.initTokenClient({
         client_id: clientId,
         scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly',
-        callback: (resp: any) => {
+        callback: (resp: GisTokenResponse) => {
           if (resp.error) {
             reject(new Error(resp.error_description || resp.error));
           } else if (resp.access_token) {
@@ -153,7 +184,7 @@ export const requestAccessTokenViaGis = async (): Promise<string | null> => {
             reject(new Error('未取得有效 Google Access Token'));
           }
         },
-        error_callback: (err: any) => {
+        error_callback: (err: { message?: string }) => {
           reject(new Error(err?.message || 'Google 授權視窗已被關閉或取消'));
         },
       });

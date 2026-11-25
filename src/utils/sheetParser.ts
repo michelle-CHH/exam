@@ -26,6 +26,21 @@ export function parseAnswerString(answerRaw: string): string[] {
 }
 
 /**
+ * 動態由 0-based 索引計算選項字母 (0->A, 1->B, 25->Z, 26->AA, 27->AB...)
+ * 徹底解除僅支援固定 A-E 選項之硬編碼限制
+ */
+export function getOptionLetter(index: number): string {
+  if (index < 0) return 'A';
+  let letter = '';
+  let n = index;
+  while (n >= 0) {
+    letter = String.fromCharCode((n % 26) + 65) + letter;
+    n = Math.floor(n / 26) - 1;
+  }
+  return letter;
+}
+
+/**
  * Format options into user-specified JSON object string: {"A": "...", "B": "...", ...}
  */
 export function formatOptionsToJsonObject(options?: string[] | Record<string, string>): string {
@@ -34,10 +49,9 @@ export function formatOptionsToJsonObject(options?: string[] | Record<string, st
     return typeof options === 'object' ? JSON.stringify(options) : String(options);
   }
   const obj: Record<string, string> = {};
-  const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
   options.forEach((opt, idx) => {
-    const cleanOpt = opt.replace(/^[A-H][.:\s]\s*/, '').trim();
-    const key = letters[idx] || `OPT_${idx + 1}`;
+    const cleanOpt = opt.replace(/^[A-Za-z0-9][.:\s]\s*/, '').trim();
+    const key = getOptionLetter(idx);
     obj[key] = cleanOpt || opt;
   });
   return JSON.stringify(obj);

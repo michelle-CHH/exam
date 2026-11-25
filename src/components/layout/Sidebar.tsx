@@ -72,18 +72,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setExpandedGroupIds((prev) => ({ ...prev, [id]: !(prev[id] ?? true) }));
   };
 
-  const getSubjectCount = (id: SubjectId, catId?: number) =>
-    questions.filter((q) => (catId && q.categoryId === catId) || q.subjectId === id).length;
-
-  const topLevelCategories = categories
-    .filter((c) => !c.parent_id || c.parent_id === 0)
-    .sort((a, b) => a.sort_order - b.sort_order);
-
-  const getChildCategories = (parentId: number) =>
-    categories
-      .filter((c) => c.parent_id === parentId)
-      .sort((a, b) => a.sort_order - b.sort_order);
-
   if (collapsed) {
     return (
       <aside className="fixed left-0 top-14 bottom-0 w-16 bg-white border-r border-[#c3c6d7]/30 z-30 flex flex-col justify-between py-4 items-center">

@@ -12,31 +12,33 @@ export default function CategoriesPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      try {
-        const storedCats = localStorage.getItem('quiz_custom_categories');
-        if (storedCats) {
-          setCategories(JSON.parse(storedCats));
-        } else {
-          const offlineRaw = localStorage.getItem('offline_public_db_cache');
-          if (offlineRaw) {
-            const parsed = JSON.parse(offlineRaw);
-            if (parsed.categories) setCategories(parsed.categories);
+      queueMicrotask(() => {
+        try {
+          const storedCats = localStorage.getItem('quiz_custom_categories');
+          if (storedCats) {
+            setCategories(JSON.parse(storedCats));
+          } else {
+            const offlineRaw = localStorage.getItem('offline_public_db_cache');
+            if (offlineRaw) {
+              const parsed = JSON.parse(offlineRaw);
+              if (parsed.categories) setCategories(parsed.categories);
+            }
           }
-        }
 
-        const storedQuestions = localStorage.getItem('quiz_custom_questions');
-        if (storedQuestions) {
-          setQuestions(JSON.parse(storedQuestions));
-        } else {
-          const offlineRaw = localStorage.getItem('offline_public_db_cache');
-          if (offlineRaw) {
-            const parsed = JSON.parse(offlineRaw);
-            if (parsed.questions) setQuestions(parsed.questions);
+          const storedQuestions = localStorage.getItem('quiz_custom_questions');
+          if (storedQuestions) {
+            setQuestions(JSON.parse(storedQuestions));
+          } else {
+            const offlineRaw = localStorage.getItem('offline_public_db_cache');
+            if (offlineRaw) {
+              const parsed = JSON.parse(offlineRaw);
+              if (parsed.questions) setQuestions(parsed.questions);
+            }
           }
+        } catch (e) {
+          console.warn('Failed to load categories from localStorage:', e);
         }
-      } catch (e) {
-        console.warn('Failed to load categories from localStorage:', e);
-      }
+      });
     }
   }, []);
 

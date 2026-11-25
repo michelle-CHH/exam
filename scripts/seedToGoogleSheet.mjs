@@ -1,6 +1,4 @@
 // scripts/seedToGoogleSheet.mjs
-import fs from 'node:fs';
-import path from 'node:path';
 
 const SHEET_ID = '175LZPtMn7Af4sMsk8ywzLgjRVBX0NncOLOOfa58j3uA';
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbySKASrw-Ft0Ao7pwz2RAH4dQymQaLzdE1BtrmqproI9LTZQ3P_5hb6rj3CwmozL8pNfA/exec';
@@ -21,17 +19,11 @@ async function fetchSheetRows(name) {
 }
 
 // 舊版一次性種子腳本 (試算表已完成初始化，本腳本安全封存)
-const mockDataPath = path.resolve('src/data/assignedExamQuestions.ts');
-let mockContent = '';
-if (fs.existsSync(mockDataPath)) {
-  mockContent = fs.readFileSync(mockDataPath, 'utf-8');
-}
-
 let assignedExam = { questions: [] };
 try {
   const mod = await import('../src/services/mockExamData.ts');
   assignedExam = mod.assignedExam || { questions: [] };
-} catch {}
+} catch { }
 
 const QUESTION_ANSWERS = {
   'assigned-01': { answer: 'B', explanation: '算術邏輯單元（ALU）負責執行所有算術運算與邏輯判斷。', tags: '計算機結構, ALU' },

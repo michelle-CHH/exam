@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import type { UserProfile } from '@/types';
 import type { ReviewQuestion } from '@/utils/examReport';
 import { downloadWrongQuestions, exportWrongQuestionsToGoogleSheet } from '@/services/resultExport';
 
@@ -34,7 +35,7 @@ export function ExportActions({ items, title }: { items: ReviewQuestion[]; title
       }
 
       // 檢查 Session 是否被其他裝置取代
-      let userObj: any = null;
+      let userObj: UserProfile | null = null;
       try {
         const raw = sessionStorage.getItem('exam_logged_in_user');
         if (raw) userObj = JSON.parse(raw);

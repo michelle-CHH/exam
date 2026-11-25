@@ -70,7 +70,7 @@ export const GoogleSheetsView: React.FC<GoogleSheetsViewProps> = ({
     title: '',
     description: '',
     actionType: 'create',
-    onConfirm: () => {},
+    onConfirm: () => { },
   });
 
   // Listen for auth state
@@ -94,9 +94,9 @@ export const GoogleSheetsView: React.FC<GoogleSheetsViewProps> = ({
         setCurrentUser(res.user);
         onShowToast(`已成功以 Google 帳號 ${res.user.email} 登入！`, 'success');
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Sign in failed:', err);
-      onShowToast(`登入失敗: ${err.message || '請確認彈出視窗未被封鎖'}`, 'error');
+      onShowToast(`登入失敗: ${(err as Error).message || '請確認彈出視窗未被封鎖'}`, 'error');
     } finally {
       setIsAuthenticating(false);
     }
@@ -107,8 +107,8 @@ export const GoogleSheetsView: React.FC<GoogleSheetsViewProps> = ({
       await logoutGoogle();
       setCurrentUser(null);
       onShowToast('已登出 Google 帳號', 'info');
-    } catch (err: any) {
-      onShowToast(`登出失敗: ${err.message}`, 'error');
+    } catch (err) {
+      onShowToast(`登出失敗: ${(err as Error).message}`, 'error');
     }
   };
 
@@ -133,7 +133,7 @@ export const GoogleSheetsView: React.FC<GoogleSheetsViewProps> = ({
       try {
         const signResult = await googleSignIn();
         token = signResult?.accessToken || null;
-      } catch (e: any) {
+      } catch (e) {
         onShowToast('建立失敗: 需先完成 Google 授權', 'error');
         return;
       }
@@ -160,14 +160,14 @@ export const GoogleSheetsView: React.FC<GoogleSheetsViewProps> = ({
           userObj.google_sheet_URL = result.spreadsheetUrl;
           sessionStorage.setItem('exam_logged_in_user', JSON.stringify(userObj));
         }
-      } catch {}
+      } catch { }
 
       const now = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       setLastSyncTime(now);
       onShowToast('🎉 成功在您的 Google 雲端硬碟建立專屬題庫並完成綁定！包含 4 張標準資料表。', 'success');
-    } catch (err: any) {
+    } catch (err) {
       console.error('Create spreadsheet error:', err);
-      onShowToast(`建立試算表失敗: ${err.message}`, 'error');
+      onShowToast(`建立試算表失敗: ${(err as Error).message}`, 'error');
     } finally {
       setIsCreatingSheet(false);
     }
@@ -183,11 +183,9 @@ export const GoogleSheetsView: React.FC<GoogleSheetsViewProps> = ({
     setConfirmModal({
       isOpen: true,
       title: '確認同步系統資料至 Google 試算表？',
-      description: `即將更新 Google 試算表中的資料：包含 ${questions.length} 題題庫試題、${
-        examPapers.filter((e) => e.status === 'published').length
-      } 份公用試卷與 ${
-        examPapers.filter((e) => e.status === 'draft').length
-      } 份草稿試卷。試算表對應工作表內容將會被更新。`,
+      description: `即將更新 Google 試算表中的資料：包含 ${questions.length} 題題庫試題、${examPapers.filter((e) => e.status === 'published').length
+        } 份公用試卷與 ${examPapers.filter((e) => e.status === 'draft').length
+        } 份草稿試卷。試算表對應工作表內容將會被更新。`,
       actionType: 'sync',
       onConfirm: async () => {
         setConfirmModal((prev) => ({ ...prev, isOpen: false }));
@@ -224,9 +222,9 @@ export const GoogleSheetsView: React.FC<GoogleSheetsViewProps> = ({
       const now = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       setLastSyncTime(now);
       onShowToast(res.message, 'success');
-    } catch (err: any) {
+    } catch (err) {
       console.error('Sync error:', err);
-      onShowToast(`同步失敗: ${err.message}`, 'error');
+      onShowToast(`同步失敗: ${(err as Error).message}`, 'error');
     } finally {
       setIsSyncing(false);
     }
@@ -277,9 +275,9 @@ export const GoogleSheetsView: React.FC<GoogleSheetsViewProps> = ({
       const now = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       setLastSyncTime(now);
       onShowToast(result.message, 'success');
-    } catch (err: any) {
+    } catch (err) {
       console.error('Read spreadsheet error:', err);
-      onShowToast(`讀取失敗: ${err.message}`, 'error');
+      onShowToast(`讀取失敗: ${(err as Error).message}`, 'error');
     } finally {
       setIsReading(false);
     }
@@ -318,9 +316,9 @@ export const GoogleSheetsView: React.FC<GoogleSheetsViewProps> = ({
       const stats = await fetchSpreadsheetStats(token, connectedSpreadsheetId);
       setApiStats(stats);
       onShowToast(`API 測試連線成功！試算表「${stats.title}」共 ${stats.sheets.length} 張工作表可正常讀寫`, 'success');
-    } catch (err: any) {
+    } catch (err) {
       console.error('Test API error:', err);
-      onShowToast(`API 測試失敗: ${err.message}`, 'error');
+      onShowToast(`API 測試失敗: ${(err as Error).message}`, 'error');
     } finally {
       setIsTestingApi(false);
     }
@@ -357,9 +355,9 @@ export const GoogleSheetsView: React.FC<GoogleSheetsViewProps> = ({
         const stats = await fetchSpreadsheetStats(token, connectedSpreadsheetId);
         setApiStats(stats);
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Init tables error:', err);
-      onShowToast(`初始化分頁失敗: ${err.message}`, 'error');
+      onShowToast(`初始化分頁失敗: ${(err as Error).message}`, 'error');
     } finally {
       setIsInitializingTables(false);
     }
@@ -742,11 +740,10 @@ export const GoogleSheetsView: React.FC<GoogleSheetsViewProps> = ({
               <button
                 key={key}
                 onClick={() => setActiveTableKey(key)}
-                className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-t-lg transition-all cursor-pointer border-t border-x ${
-                  isActive
-                    ? 'bg-white text-[#004ac6] border-[#c3c6d7]/40 shadow-xs -mb-[1px]'
-                    : 'bg-transparent text-[#434655] border-transparent hover:text-[#191c1e]'
-                }`}
+                className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-t-lg transition-all cursor-pointer border-t border-x ${isActive
+                  ? 'bg-white text-[#004ac6] border-[#c3c6d7]/40 shadow-xs -mb-[1px]'
+                  : 'bg-transparent text-[#434655] border-transparent hover:text-[#191c1e]'
+                  }`}
                 type="button"
               >
                 <span className="material-symbols-outlined text-[16px]">
@@ -783,14 +780,14 @@ export const GoogleSheetsView: React.FC<GoogleSheetsViewProps> = ({
                 {activeTableKey === 'test_bank'
                   ? questions.length
                   : activeTableKey === 'quiz_bank_publish'
-                  ? examPapers.filter((e) => e.status === 'published').length
-                  : activeTableKey === 'quiz_bank_unpublish'
-                  ? examPapers.filter((e) => e.status === 'draft').length
-                  : activeTableKey === 'categories'
-                  ? 12
-                  : activeTableKey === 'roles'
-                  ? 5
-                  : 3} 筆
+                    ? examPapers.filter((e) => e.status === 'published').length
+                    : activeTableKey === 'quiz_bank_unpublish'
+                      ? examPapers.filter((e) => e.status === 'draft').length
+                      : activeTableKey === 'categories'
+                        ? 12
+                        : activeTableKey === 'roles'
+                          ? 5
+                          : 3} 筆
               </span>
             </div>
           </div>
@@ -808,7 +805,7 @@ export const GoogleSheetsView: React.FC<GoogleSheetsViewProps> = ({
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-mono font-bold text-xs text-[#004ac6]">
-                      "{col.key}"
+                      &quot;{col.key}&quot;
                     </span>
                     <span className="text-[10px] text-[#737686] font-mono">Col #{idx + 1}</span>
                   </div>
@@ -939,20 +936,19 @@ export const GoogleSheetsView: React.FC<GoogleSheetsViewProps> = ({
           <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl p-6 border border-[#c3c6d7]/30 space-y-4">
             <div className="flex items-center gap-3">
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                  confirmModal.actionType === 'disconnect'
-                    ? 'bg-[#ffdad6] text-[#ba1a1a]'
-                    : confirmModal.actionType === 'read'
+                className={`w-10 h-10 rounded-full flex items-center justify-center ${confirmModal.actionType === 'disconnect'
+                  ? 'bg-[#ffdad6] text-[#ba1a1a]'
+                  : confirmModal.actionType === 'read'
                     ? 'bg-[#e8f0fe] text-[#1a73e8]'
                     : 'bg-[#dbe1ff] text-[#004ac6]'
-                }`}
+                  }`}
               >
                 <span className="material-symbols-outlined text-[24px]">
                   {confirmModal.actionType === 'disconnect'
                     ? 'warning'
                     : confirmModal.actionType === 'read'
-                    ? 'cloud_download'
-                    : 'cloud_upload'}
+                      ? 'cloud_download'
+                      : 'cloud_upload'}
                 </span>
               </div>
               <div>
@@ -975,20 +971,19 @@ export const GoogleSheetsView: React.FC<GoogleSheetsViewProps> = ({
               </button>
               <button
                 onClick={confirmModal.onConfirm}
-                className={`px-4 py-2 text-xs font-semibold text-white rounded-lg shadow-xs transition-colors cursor-pointer ${
-                  confirmModal.actionType === 'disconnect'
-                    ? 'bg-[#ba1a1a] hover:bg-[#93000a]'
-                    : confirmModal.actionType === 'read'
+                className={`px-4 py-2 text-xs font-semibold text-white rounded-lg shadow-xs transition-colors cursor-pointer ${confirmModal.actionType === 'disconnect'
+                  ? 'bg-[#ba1a1a] hover:bg-[#93000a]'
+                  : confirmModal.actionType === 'read'
                     ? 'bg-[#1a73e8] hover:bg-[#1557b0]'
                     : 'bg-[#004ac6] hover:bg-[#003da6]'
-                }`}
+                  }`}
                 type="button"
               >
                 {confirmModal.actionType === 'disconnect'
                   ? '確認解除'
                   : confirmModal.actionType === 'read'
-                  ? '確認讀取並匯入'
-                  : '確認執行寫入'}
+                    ? '確認讀取並匯入'
+                    : '確認執行寫入'}
               </button>
             </div>
           </div>

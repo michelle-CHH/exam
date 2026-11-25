@@ -124,7 +124,7 @@ export function questionsToTestBankSheetData(questions: Question[]): SheetData {
       { value: q.explanation || '', type: String, wrap: true },
       { value: Number(q.difficultyScore ?? (q.difficulty === 'hard' ? 4 : q.difficulty === 'medium' ? 3 : 2)), type: Number },
       { value: Number(q.points ?? 10), type: Number },
-      { value: Number(q.categoryId ?? 3), type: Number },
+      { value: Number(q.categoryId ?? 0), type: Number },
       { value: tagsStr, type: String },
       { value: q.updatedAt || nowStr, type: String },
       { value: Number(q.updatedBy ?? 1), type: Number },
@@ -157,20 +157,31 @@ export function examPaperToQuizBankSheetData(paper: ExamPaper): SheetData {
   return examPapersToQuizBankSheetData([paper]);
 }
 
+interface CategoryExportItem extends CategoryItem {
+  code?: string;
+  name?: string;
+  description?: string;
+}
+
+type WriteXlsxFileFn = (data: unknown, options?: unknown) => Promise<Blob>;
+
 export function categoriesToSheetData(categories: CategoryItem[]): SheetData {
   const headerRow = makeHeaderRow(CATEGORIES_HEADERS);
   const now = formatSheetTimestamp();
-  const dataRows: Row[] = categories.map((cat, idx) => [
-    { value: Number(cat.id || idx + 1), type: Number },
-    { value: (cat as any).code || `CAT_${cat.id || idx + 1}`, type: String },
-    { value: cat.categories_name || (cat as any).name || '', type: String },
-    { value: (cat as any).description || '', type: String },
-    { value: Number(cat.parent_id ?? 0), type: Number },
-    { value: Number(cat.sort_order ?? idx + 1), type: Number },
-    { value: 1, type: Number },
-    { value: now, type: String },
-    { value: now, type: String },
-  ]);
+  const dataRows: Row[] = categories.map((cat, idx) => {
+    const c = cat as CategoryExportItem;
+    return [
+      { value: Number(c.id || idx + 1), type: Number },
+      { value: c.code || `CAT_${c.id || idx + 1}`, type: String },
+      { value: c.categories_name || c.name || '', type: String },
+      { value: c.description || '', type: String },
+      { value: Number(c.parent_id ?? 0), type: Number },
+      { value: Number(c.sort_order ?? idx + 1), type: Number },
+      { value: 1, type: Number },
+      { value: now, type: String },
+      { value: now, type: String },
+    ];
+  });
   return [headerRow, ...dataRows];
 }
 
@@ -290,7 +301,7 @@ export async function generatePublicDatabaseBlob(params: {
     },
   ];
 
-  return (await (writeXlsxFile as any)(sheets)) as Blob;
+  return (await (writeXlsxFile as unknown as WriteXlsxFileFn)(sheets)) as Blob;
 }
 
 /**
@@ -313,7 +324,7 @@ export async function generatePersonalDatabaseBlob(params: {
     },
   ];
 
-  return (await (writeXlsxFile as any)(sheets)) as Blob;
+  return (await (writeXlsxFile as unknown as WriteXlsxFileFn)(sheets)) as Blob;
 }
 
 /**
@@ -419,7 +430,7 @@ export async function downloadCustomExamAsGoogleSheetExcel(
     },
   ];
 
-  const blob = (await (writeXlsxFile as any)(sheets)) as Blob;
+  const blob = (await (writeXlsxFile as unknown as WriteXlsxFileFn)(sheets)) as Blob;
   const cleanTitle = paper.title.replace(/[\\/:*?"<>|]/g, '_');
   const filename = customFilename || `自選考卷_${cleanTitle}.xlsx`;
   triggerBlobDownload(blob, filename);
@@ -436,7 +447,7 @@ export async function downloadQuestionsAsGoogleSheetExcel(
 
   const testBankSheetData = questionsToTestBankSheetData(questions);
 
-  const blob = (await (writeXlsxFile as any)(testBankSheetData, {
+  const blob = (await (writeXlsxFile as unknown as WriteXlsxFileFn)(testBankSheetData, {
     sheet: 'test_bank',
   })) as Blob;
 

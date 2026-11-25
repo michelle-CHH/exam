@@ -154,7 +154,7 @@ export const SystemSettingsView: React.FC<SystemSettingsViewProps> = ({ auditLog
         <div className="flex items-center justify-between border-b border-[#c3c6d7]/30 pb-2">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[#007d55] text-[20px]">history_edu</span>
-            <h2 className="text-[16px] font-bold text-[#191c1e]">系統操作安全審計日誌 (Audit Logs - 讀寫自 Google Sheet "log" 分頁)</h2>
+            <h2 className="text-[16px] font-bold text-[#191c1e]">系統操作安全審計日誌 (Audit Logs - 讀寫自 Google Sheet &quot;log&quot; 分頁)</h2>
           </div>
           <span className="text-[11px] text-[#434655]">即時同步中 ({(auditLogs || []).length} 筆)</span>
         </div>

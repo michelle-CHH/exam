@@ -27,8 +27,10 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ profile, onSave }) => 
 
   useEffect(() => {
     if (profile) {
-      setNickname(profile.nickname ?? profile.name ?? '');
-      setSheetUrl(profile.google_sheet_URL ?? '');
+      queueMicrotask(() => {
+        setNickname(profile.nickname ?? profile.name ?? '');
+        setSheetUrl(profile.google_sheet_URL ?? '');
+      });
     }
   }, [profile?.nickname, profile?.name, profile?.google_sheet_URL]);
 
@@ -39,8 +41,8 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ profile, onSave }) => 
     try {
       await onSave?.({ nickname, google_sheet_URL: sheetUrl.trim() });
       setStatusMessage({ text: '✅ 個人設定與試算表綁定已成功儲存！', type: 'success' });
-    } catch (err: any) {
-      setStatusMessage({ text: `儲存失敗：${err.message || '未知錯誤'}`, type: 'error' });
+    } catch (err) {
+      setStatusMessage({ text: `儲存失敗：${(err as Error).message || '未知錯誤'}`, type: 'error' });
     } finally {
       setIsSubmitting(false);
     }
@@ -91,9 +93,9 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ profile, onSave }) => 
           type: 'info',
         });
       }
-    } catch (err: any) {
+    } catch (err) {
       setStatusMessage({
-        text: `查詢 Google 雲端硬碟失敗：${err.message || '未知錯誤'}`,
+        text: `查詢 Google 雲端硬碟失敗：${(err as Error).message || '未知錯誤'}`,
         type: 'error',
       });
     } finally {
@@ -130,9 +132,9 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ profile, onSave }) => 
         text: `🎉 建立與綁定完成！已自動建立 4 張標準分頁（test_bank, quiz_bank_publish, quiz_bank_unpublish, log）並成功綁定。`,
         type: 'success',
       });
-    } catch (err: any) {
+    } catch (err) {
       setStatusMessage({
-        text: `建立失敗：${err.message || '未知錯誤'}`,
+        text: `建立失敗：${(err as Error).message || '未知錯誤'}`,
         type: 'error',
       });
     } finally {
@@ -169,9 +171,9 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ profile, onSave }) => 
         text: msg,
         type: 'success',
       });
-    } catch (err: any) {
+    } catch (err) {
       setStatusMessage({
-        text: `驗證或建立分頁失敗：${err.message || '未知錯誤'}`,
+        text: `驗證或建立分頁失敗：${(err as Error).message || '未知錯誤'}`,
         type: 'error',
       });
     } finally {
@@ -192,9 +194,9 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ profile, onSave }) => 
         text: `🎉 已成功綁定試算表「${candidate.name}」！`,
         type: 'success',
       });
-    } catch (err: any) {
+    } catch (err) {
       setStatusMessage({
-        text: `儲存綁定失敗：${err.message || '未知錯誤'}`,
+        text: `儲存綁定失敗：${(err as Error).message || '未知錯誤'}`,
         type: 'error',
       });
     }
@@ -336,13 +338,12 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ profile, onSave }) => 
         {/* 操作狀態提示 */}
         {statusMessage && (
           <div
-            className={`p-3 rounded-lg text-xs font-medium border flex items-center gap-2 animate-in fade-in duration-150 ${
-              statusMessage.type === 'success'
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                : statusMessage.type === 'error'
+            className={`p-3 rounded-lg text-xs font-medium border flex items-center gap-2 animate-in fade-in duration-150 ${statusMessage.type === 'success'
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              : statusMessage.type === 'error'
                 ? 'bg-rose-50 text-rose-800 border-rose-200'
                 : 'bg-blue-50 text-blue-800 border-blue-200'
-            }`}
+              }`}
           >
             <span className="material-symbols-outlined text-[16px] shrink-0">
               {statusMessage.type === 'success' ? 'check_circle' : statusMessage.type === 'error' ? 'error' : 'info'}

@@ -7,7 +7,7 @@ import { SheetBindGuardModal } from '@/components/common/SheetBindGuardModal';
 import { ensurePersonalSpreadsheetTablesExist } from '@/services/userSheet';
 import { getAccessToken, googleSignIn } from '@/services/googleAuth';
 
-const SUBJECT_LABELS: Record<SubjectId, string> = {
+const SUBJECT_LABELS: Record<string, string> = {
   chinese: '國文',
   english: '英文',
   math: '數學',
@@ -104,7 +104,7 @@ export function ExamPaperSelection({
     } else if (!hasBoundSheet && typeof window !== 'undefined') {
       try {
         custom = JSON.parse(localStorage.getItem('quiz_custom_exams') || '[]');
-      } catch {}
+      } catch { }
     }
     const markedCustom = custom.map((p) => ({ ...p, sourceScope: 'private' as const }));
     const markedPublic = papers.map((p) => ({ ...p, sourceScope: 'public' as const }));
@@ -115,7 +115,9 @@ export function ExamPaperSelection({
       seen.add(p.id);
       return true;
     });
-    setAllPapers(unique);
+    queueMicrotask(() => {
+      setAllPapers(unique);
+    });
   }, [papers, personalPapers, hasBoundSheet]);
 
   const handleTabChange = (newTab: 'public' | 'private') => {
@@ -197,22 +199,20 @@ export function ExamPaperSelection({
             <button
               type="button"
               onClick={() => handleTabChange('public')}
-              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${
-                paperTab === 'public'
-                  ? 'bg-white text-[#004ac6] shadow-sm'
-                  : 'text-[#434655] hover:text-[#191c1d]'
-              }`}
+              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${paperTab === 'public'
+                ? 'bg-white text-[#004ac6] shadow-sm'
+                : 'text-[#434655] hover:text-[#191c1d]'
+                }`}
             >
               公用試卷
             </button>
             <button
               type="button"
               onClick={() => handleTabChange('private')}
-              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${
-                paperTab === 'private'
-                  ? 'bg-white text-[#004ac6] shadow-sm'
-                  : 'text-[#434655] hover:text-[#191c1d]'
-              }`}
+              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${paperTab === 'private'
+                ? 'bg-white text-[#004ac6] shadow-sm'
+                : 'text-[#434655] hover:text-[#191c1d]'
+                }`}
             >
               私人試卷
             </button>
@@ -244,7 +244,11 @@ export function ExamPaperSelection({
                 className="mt-2 min-h-11 w-full rounded-lg border border-outline-variant bg-white px-3 font-normal text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
               >
                 <option value="all">所有科目</option>
-                {subjects.map((item) => <option key={item} value={item}>{SUBJECT_LABELS[item]}</option>)}
+                {subjects.map((item) => {
+                  const paperMatch = allPapers.find((p) => p.subjectId === item);
+                  const label = SUBJECT_LABELS[item] || paperMatch?.subject || item;
+                  return <option key={item} value={item}>{label}</option>;
+                })}
               </select>
             </label>
             <label className="text-sm font-semibold text-on-surface-variant">
@@ -337,11 +341,10 @@ export function ExamPaperSelection({
                       type="button"
                       onClick={() => selectPaper(paper)}
                       aria-pressed={selected}
-                      className={`shrink-0 self-start sm:self-center min-w-[96px] h-10 rounded-lg px-4 py-2 text-sm font-bold transition-colors cursor-pointer whitespace-nowrap ${
-                        selected
-                          ? 'bg-[#004ac6] border border-[#004ac6] text-white shadow-sm'
-                          : 'border border-[#004ac6] text-[#004ac6] bg-white hover:bg-[#eef3ff]'
-                      }`}
+                      className={`shrink-0 self-start sm:self-center min-w-[96px] h-10 rounded-lg px-4 py-2 text-sm font-bold transition-colors cursor-pointer whitespace-nowrap ${selected
+                        ? 'bg-[#004ac6] border border-[#004ac6] text-white shadow-sm'
+                        : 'border border-[#004ac6] text-[#004ac6] bg-white hover:bg-[#eef3ff]'
+                        }`}
                     >
                       {selected ? '已選擇' : '選擇試卷'}
                     </button>

@@ -47,7 +47,7 @@ export function calculateExamScore(
 
   for (const q of questions) {
     totalScore += q.points;
-    const expected = parseAnswerTokens(q.correctAnswer).sort().join(',');
+    const expected = parseAnswerTokens(q.correctAnswer || q.answer || '').sort().join(',');
     const actualArr = userAnswers[q.id] || [];
     const actual = [...actualArr].map((a) => a.trim().toUpperCase()).sort().join(',');
 
@@ -86,3 +86,6 @@ export function calculateExamScore(
     analysis,
   };
 }
+
+export const calculateScore = calculateExamScore;
+

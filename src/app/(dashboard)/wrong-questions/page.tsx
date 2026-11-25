@@ -9,6 +9,7 @@ import { parseWrongQuestionsExcel } from '@/utils/fileParsers';
 import { fetchWrongQuestionsFromUserSheet, WrongQuestionRecord } from '@/services/userSheet';
 import { getAccessToken, googleSignIn } from '@/services/googleAuth';
 import { formatSheetTimestamp } from '@/utils/formatters';
+import { getOptionLetter } from '@/utils/sheetParser';
 import { verifyUserSessionActive, getSubjectDisplayName } from '@/services/publicSheet';
 
 export interface StoredWrongRecord {
@@ -76,51 +77,52 @@ export default function WrongQuestionsPage({
   // 載入儲存的錯題紀錄
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    try {
-      const savedNew = localStorage.getItem('quiz_wrong_records_book');
-      if (savedNew) {
-        const loaded: StoredWrongRecord[] = JSON.parse(savedNew).map((r: any) => ({
-          ...r,
-          submittedAt: typeof r.submittedAt === 'number' && r.submittedAt > 0
-            ? r.submittedAt
-            : (Date.parse(String(r.submitTime || r.submittedAt)) || Date.now()),
-        }));
-        setRecords(loaded);
-        return;
-      }
-      // 兼容舊格式
-      const savedOld = localStorage.getItem('quiz_wrong_questions_book');
-      if (savedOld) {
-        const parsedOld: Question[] = JSON.parse(savedOld);
-        const converted: StoredWrongRecord[] = parsedOld.map((q, idx) => {
-          let opts: { id: string; text: string }[] = [];
-          if (Array.isArray(q.options)) {
-            const letters = ['A', 'B', 'C', 'D', 'E'];
-            opts = q.options.map((opt: any, i) => {
-              const text = typeof opt === 'string' ? opt : opt.text;
-              const letter = letters[i] || String(i + 1);
-              return { id: letter, text: text.replace(/^[A-Ea-e1-9][.、:\s]\s*/, '') };
-            });
-          }
-          return {
-            id: q.id || `Q-${idx + 1}`,
-            questionId: q.id || `Q-${idx + 1}`,
-            prompt: q.content || q.question || '',
-            options: opts.length > 0 ? opts : [{ id: 'A', text: '選項 A' }, { id: 'B', text: '選項 B' }, { id: 'C', text: '選項 C' }, { id: 'D', text: '選項 D' }],
-            userAnswer: '未作答',
-            correctAnswer: q.correctAnswer || q.answer || 'A',
-            explanation: q.explanation || '',
-            status: 'wrong',
-            subject: q.subject || getSubjectDisplayName(q.subjectId),
-            subjectId: q.subjectId || '未分類',
-            difficulty: (q.difficulty as any) || 'medium',
-            points: q.points || 5,
-            submittedAt: Date.now(),
-          };
-        });
-        setRecords(converted);
-      }
-    } catch { }
+    queueMicrotask(() => {
+      try {
+        const savedNew = localStorage.getItem('quiz_wrong_records_book');
+        if (savedNew) {
+          const loaded: StoredWrongRecord[] = JSON.parse(savedNew).map((r: any) => ({
+            ...r,
+            submittedAt: typeof r.submittedAt === 'number' && r.submittedAt > 0
+              ? r.submittedAt
+              : (Date.parse(String(r.submitTime || r.submittedAt)) || Date.now()),
+          }));
+          setRecords(loaded);
+          return;
+        }
+        // 兼容舊格式
+        const savedOld = localStorage.getItem('quiz_wrong_questions_book');
+        if (savedOld) {
+          const parsedOld: Question[] = JSON.parse(savedOld);
+          const converted: StoredWrongRecord[] = parsedOld.map((q, idx) => {
+            let opts: { id: string; text: string }[] = [];
+            if (Array.isArray(q.options)) {
+              opts = (q.options as (string | { id?: string; text?: string })[]).map((opt, i) => {
+                const text = typeof opt === 'string' ? opt : (opt.text || '');
+                const letter = getOptionLetter(i);
+                return { id: letter, text: text.replace(/^[A-Za-z0-9][.、:\s]\s*/, '') };
+              });
+            }
+            return {
+              id: q.id || `Q-${idx + 1}`,
+              questionId: q.id || `Q-${idx + 1}`,
+              prompt: q.content || q.question || '',
+              options: opts.length > 0 ? opts : [{ id: 'A', text: '選項 A' }, { id: 'B', text: '選項 B' }, { id: 'C', text: '選項 C' }, { id: 'D', text: '選項 D' }],
+              userAnswer: '未作答',
+              correctAnswer: q.correctAnswer || q.answer || 'A',
+              explanation: q.explanation || '',
+              status: 'wrong',
+              subject: q.subject || getSubjectDisplayName(q.subjectId),
+              subjectId: q.subjectId || '未分類',
+              difficulty: (q.difficulty as any) || 'medium',
+              points: q.points || 5,
+              submittedAt: Date.now(),
+            };
+          });
+          setRecords(converted);
+        }
+      } catch { }
+    });
   }, []);
 
   const saveRecords = (newRecords: StoredWrongRecord[]) => {
@@ -167,11 +169,10 @@ export default function WrongQuestionsPage({
         const matchedQ = qMap.get(wr.questionId);
         let opts: { id: string; text: string }[] = [];
         if (matchedQ?.options) {
-          const letters = ['A', 'B', 'C', 'D', 'E'];
-          opts = matchedQ.options.map((opt: any, i) => {
-            const text = typeof opt === 'string' ? opt : opt.text;
-            const letter = letters[i] || String(i + 1);
-            return { id: letter, text: text.replace(/^[A-Ea-e1-9][.、:\s]\s*/, '') };
+          opts = (matchedQ.options as (string | { id?: string; text?: string })[]).map((opt, i) => {
+            const text = typeof opt === 'string' ? opt : (opt.text || '');
+            const letter = getOptionLetter(i);
+            return { id: letter, text: text.replace(/^[A-Za-z0-9][.、:\s]\s*/, '') };
           });
         }
         if (opts.length === 0) {
@@ -307,7 +308,7 @@ export default function WrongQuestionsPage({
     return records.map((r, idx) => ({
       id: r.questionId || `retest-q-${idx + 1}`,
       content: r.prompt,
-      subjectId: (r.subjectId || 'math') as any,
+      subjectId: (r.subjectId || 'other') as SubjectId,
       difficulty: r.difficulty,
       difficultyScore: r.difficulty === 'hard' ? 4 : r.difficulty === 'easy' ? 2 : 3,
       points: r.points || 5,
@@ -351,7 +352,7 @@ export default function WrongQuestionsPage({
         points: r.points || 5,
         answer: r.correctAnswer,
         explanation: r.explanation,
-        subjectId: (r.subjectId || 'math') as SubjectId,
+        subjectId: (r.subjectId || 'other') as SubjectId,
         difficulty: r.difficulty,
       })),
     };

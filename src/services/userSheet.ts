@@ -1,9 +1,7 @@
 import { Question, ExamPaper, ReadSpreadsheetResult } from '@/types';
-import { extractSpreadsheetId } from '@/utils/sheetParser';
+import { extractSpreadsheetId, getOptionLetter } from '@/utils/sheetParser';
 import {
   readAllTablesFromSpreadsheet,
-  appendQuestionToSpreadsheet,
-  appendExamToSpreadsheet,
   ensureSpreadsheetTablesExist,
   DATABASE_TABLE_SCHEMAS,
 } from '@/services/publicSheet';
@@ -121,7 +119,7 @@ export async function ensurePersonalSpreadsheetTablesExist(
     throw new Error(err.error?.message || `無法讀取個人試算表資訊 (${metaRes.status})`);
   }
   const metaData = await metaRes.json();
-  const existingTitles = new Set<string>((metaData.sheets || []).map((s: any) => s.properties?.title));
+  const existingTitles = new Set<string>((metaData.sheets || []).map((s: { properties?: { title?: string } }) => s.properties?.title));
 
   const targetSheets = ['test_bank', 'quiz_bank_publish', 'quiz_bank_unpublish', 'log'];
   const missingSheets = targetSheets.filter((title) => !existingTitles.has(title));
@@ -168,9 +166,9 @@ export async function ensurePersonalSpreadsheetTablesExist(
     const headerDataMap: Record<string, string[]> = {};
     if (headerRes.ok) {
       const hJson = await headerRes.json();
-      (hJson.valueRanges || []).forEach((vr: any) => {
+      (hJson.valueRanges || []).forEach((vr: { range?: string; values?: unknown[][] }) => {
         const title = (vr.range || '').split('!')[0].replace(/['"]/g, '');
-        headerDataMap[title] = (vr.values?.[0] || []).map((v: any) => String(v || '').trim().toLowerCase());
+        headerDataMap[title] = (vr.values?.[0] || []).map((v: unknown) => String(v || '').trim().toLowerCase());
       });
     }
 
@@ -235,13 +233,12 @@ export async function appendQuestionToUserSheet(
   await ensurePersonalSpreadsheetTablesExist(accessToken, userSheetUrl);
 
   const categoryId = question.categoryId || 0;
-  const optionsMapOrList = question.options || (question as any).optionsMap;
+  const optionsMapOrList = question.options || (question as { optionsMap?: unknown }).optionsMap;
   let optionsStr = '';
   if (Array.isArray(optionsMapOrList)) {
-    const letters = ['A', 'B', 'C', 'D', 'E'];
     const obj: Record<string, string> = {};
-    optionsMapOrList.forEach((opt: any, i: number) => {
-      obj[letters[i] || String(i + 1)] = typeof opt === 'string' ? opt : opt.text;
+    (optionsMapOrList as (string | { text?: string })[]).forEach((opt, i: number) => {
+      obj[getOptionLetter(i)] = typeof opt === 'string' ? opt : (opt?.text || '');
     });
     optionsStr = JSON.stringify(obj);
   } else if (typeof optionsMapOrList === 'object' && optionsMapOrList !== null) {
@@ -392,7 +389,7 @@ export async function syncPersonalDataToUserSheet(
   // 1. 產生 test_bank 資料
   const testBankHeaders = DATABASE_TABLE_SCHEMAS.test_bank.columns.map((c) => c.label);
   const now = formatSheetTimestamp();
-  const testBankRows: any[][] = [
+  const testBankRows: (string | number)[][] = [
     testBankHeaders,
     ...questions.map((q, idx) => {
       let optionStr = '';
@@ -412,7 +409,7 @@ export async function syncPersonalDataToUserSheet(
         q.explanation || '',
         Number(q.difficultyScore ?? 3),
         Number(q.points ?? 10),
-        Number(q.categoryId ?? 3),
+        Number(q.categoryId ?? 0),
         Array.isArray(q.tags) ? q.tags.join(', ') : (q.tags || ''),
         q.updatedAt || now,
         Number(q.updatedBy ?? 1),
@@ -423,7 +420,7 @@ export async function syncPersonalDataToUserSheet(
 
   // 2. 產生 quiz_bank_publish 資料
   const pubHeaders = [...DATABASE_TABLE_SCHEMAS.quiz_bank_publish.columns.map((c) => c.label), 'test_id'];
-  const pubRows: any[][] = [
+  const pubRows: (string | number)[][] = [
     pubHeaders,
     ...exams.map((e, idx) => [
       idx + 1,
@@ -500,9 +497,9 @@ export async function searchPersonalSpreadsheetsInDrive(
   }
 
   const data = await res.json();
-  const files = data.files || [];
+  const files: { id: string; name?: string; webViewLink?: string; modifiedTime?: string }[] = data.files || [];
 
-  return files.map((file: any) => {
+  return files.map((file) => {
     const nameLower = (file.name || '').toLowerCase();
     const isPersonal =
       nameLower.includes('個人專屬題庫') ||
@@ -578,8 +575,8 @@ export async function fetchWrongQuestionsFromUserSheet(
       if (match && match[1]) {
         const json = JSON.parse(match[1]);
         if (json.table?.rows) {
-          rows = json.table.rows.map((r: any) =>
-            (r.c || []).map((cell: any) => (cell?.v !== undefined && cell?.v !== null ? String(cell.v) : ''))
+          rows = (json.table.rows as { c?: { v?: unknown }[] }[]).map((r) =>
+            (r.c || []).map((cell) => (cell?.v !== undefined && cell?.v !== null ? String(cell.v) : ''))
           );
         }
       }
@@ -624,7 +621,7 @@ export async function fetchWrongQuestionsFromUserSheet(
         if (m) {
           parsedOptions.push({ id: m[1].toUpperCase(), text: m[2].trim() });
         } else if (trimmed) {
-          const letter = ['A', 'B', 'C', 'D', 'E'][parsedOptions.length] || String(parsedOptions.length + 1);
+          const letter = getOptionLetter(parsedOptions.length);
           parsedOptions.push({ id: letter, text: trimmed });
         }
       });
@@ -646,17 +643,17 @@ export async function fetchWrongQuestionsFromUserSheet(
 
     const subjectId =
       subjectStr.includes('國') ? 'chinese' :
-      subjectStr.includes('英') ? 'english' :
-      subjectStr.includes('數') ? 'math' :
-      subjectStr.includes('物') ? 'physics' :
-      subjectStr.includes('化') ? 'chemistry' :
-      subjectStr.includes('生') ? 'biology' :
-      subjectStr.includes('歷') ? 'history' :
-      subjectStr.includes('地') ? 'geography' : 'math';
+        subjectStr.includes('英') ? 'english' :
+          subjectStr.includes('數') ? 'math' :
+            subjectStr.includes('物') ? 'physics' :
+              subjectStr.includes('化') ? 'chemistry' :
+                subjectStr.includes('生') ? 'biology' :
+                  subjectStr.includes('歷') ? 'history' :
+                    subjectStr.includes('地') ? 'geography' : 'math';
 
     const difficulty: 'easy' | 'medium' | 'hard' =
       difficultyStr.includes('難') || difficultyStr.includes('hard') ? 'hard' :
-      difficultyStr.includes('易') || difficultyStr.includes('簡') || difficultyStr.includes('easy') ? 'easy' : 'medium';
+        difficultyStr.includes('易') || difficultyStr.includes('簡') || difficultyStr.includes('easy') ? 'easy' : 'medium';
 
     const qItem: Question = {
       id: questionId,

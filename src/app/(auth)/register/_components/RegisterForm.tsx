@@ -162,7 +162,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
           } else {
             writeErrorDetail = writeRes?.message || '寫入失敗';
           }
-        } catch (sheetErr: any) {
+        } catch (sheetErr) {
           writeErrorDetail = sheetErr?.message || '雲端資料庫寫入連線錯誤';
           console.error('Google Sheet append user failed:', sheetErr);
         }
@@ -189,7 +189,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
       }
 
       setRegisteredUser(newUser);
-    } catch (err: any) {
+    } catch (err) {
       setErrorMessage(err?.message || '註冊失敗，請檢查輸入資料或網路連線。');
     } finally {
       setIsSubmitting(false);

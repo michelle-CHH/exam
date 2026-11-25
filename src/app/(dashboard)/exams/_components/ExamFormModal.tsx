@@ -50,19 +50,25 @@ export const ExamGenerationModal: React.FC<ExamGenerationModalProps> = ({
         )
       : 0;
 
+  const handleFinish = () => {
+    onClose();
+  };
+
   useEffect(() => {
     if (isOpen) {
-      setStep('form');
-      setExamTitle('');
-      setDescription('');
-      setDuration(calculatedDuration);
-      setDifficultyLv(calculatedDifficulty);
-      setStatus('published');
-      if (idPrefix) {
-        setCreatedExamId(`${idPrefix}${Date.now().toString().slice(-6)}`);
-      } else {
-        setCreatedExamId(`EXAM-2024-MATH-${String(Math.floor(82 + Math.random() * 50)).padStart(3, '0')}`);
-      }
+      queueMicrotask(() => {
+        setStep('form');
+        setExamTitle('');
+        setDescription('');
+        setDuration(calculatedDuration);
+        setDifficultyLv(calculatedDifficulty);
+        setStatus('published');
+        if (idPrefix) {
+          setCreatedExamId(`${idPrefix}${Date.now().toString().slice(-6)}`);
+        } else {
+          setCreatedExamId(`EXAM-2024-MATH-${String(Math.floor(82 + Math.random() * 50)).padStart(3, '0')}`);
+        }
+      });
     }
   }, [isOpen, calculatedDuration, calculatedDifficulty, idPrefix]);
 
@@ -120,10 +126,6 @@ export const ExamGenerationModal: React.FC<ExamGenerationModalProps> = ({
       return;
     }
     setStep('success');
-  };
-
-  const handleFinish = () => {
-    onClose();
   };
 
   return (

@@ -103,7 +103,7 @@ export async function exportWrongQuestionsToGoogleSheet(
 
     const meta = await metaRes.json();
     const hasReviewNotebook = (meta.sheets || []).some(
-      (s: any) => s.properties?.title === 'Review notebook'
+      (s: { properties?: { title?: string } }) => s.properties?.title === 'Review notebook'
     );
 
     // 2. 若無 Review notebook 分頁，新增分頁並建立標題列

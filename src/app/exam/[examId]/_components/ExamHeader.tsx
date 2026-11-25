@@ -1,6 +1,7 @@
 "use client";
 
 import type { MouseEvent } from "react";
+import Link from "next/link";
 import { formatTime } from "@/utils/formatters";
 import type { Exam } from "@/types/exam";
 import { clearSession } from "@/contexts/examStorage";
@@ -88,9 +89,9 @@ export function ExamHeader({
           </div>
 
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <a href="/" onClick={handleBack} className="exam-btn exam-btn-onnavy">
+            <Link href="/" onClick={handleBack} className="exam-btn exam-btn-onnavy">
               返回
-            </a>
+            </Link>
             <div className={`text-[22px] font-bold tabular-nums ${danger ? "timer-danger" : ""}`}>
               {formatTime(remainingSec)}
             </div>

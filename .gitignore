@@ -11,3 +11,5 @@ coverage/
 firebase-applet-config.json
 !firebase-applet-config.example.json
 *.tsbuildinfo
+*-report.html
+slop-deps-output.txt

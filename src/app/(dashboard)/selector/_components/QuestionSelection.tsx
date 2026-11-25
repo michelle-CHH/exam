@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import type { DifficultyLevel, Question, SubjectId } from '@/types';
 
-const SUBJECT_LABELS: Record<SubjectId, string> = {
+const SUBJECT_LABELS: Record<string, string> = {
   chinese: '國文',
   english: '英文',
   math: '數學',
@@ -93,7 +93,7 @@ export function QuestionSelection({ questions }: { questions: Question[] }) {
                 className="mt-2 min-h-11 w-full rounded-lg border border-outline-variant bg-white px-3 font-normal text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
               >
                 <option value="all">所有科目</option>
-                {subjects.map((item) => <option key={item} value={item}>{SUBJECT_LABELS[item]}</option>)}
+                {subjects.map((item) => <option key={item} value={item}>{SUBJECT_LABELS[item] || item}</option>)}
               </select>
             </label>
             <label className="text-sm font-semibold text-on-surface-variant">
@@ -139,7 +139,7 @@ export function QuestionSelection({ questions }: { questions: Question[] }) {
                     />
                     <div className="min-w-0 flex-1">
                       <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-semibold">
-                        <span className="selection-chip subject-chip rounded-full bg-primary-fixed px-2.5 py-1 text-on-primary-fixed">{SUBJECT_LABELS[question.subjectId]}</span>
+                        <span className="selection-chip subject-chip rounded-full bg-primary-fixed px-2.5 py-1 text-on-primary-fixed">{SUBJECT_LABELS[question.subjectId] || question.subjectId}</span>
                         <span className="selection-chip rounded-full bg-surface-container px-2.5 py-1 text-on-surface-variant">{DIFFICULTY_LABELS[question.difficulty]}</span>
                         <span className="text-on-surface-variant">{question.points} 分</span>
                       </div>

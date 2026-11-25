@@ -21,8 +21,10 @@ export const ExamColumnVisibilityMenu: React.FC<ExamColumnVisibilityMenuProps> =
 
   useEffect(() => {
     if (isOpen) {
-      setDraftColumns(columns);
-      setShowEmptyAlert(false);
+      queueMicrotask(() => {
+        setDraftColumns(columns);
+        setShowEmptyAlert(false);
+      });
     }
   }, [isOpen, columns]);
 

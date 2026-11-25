@@ -23,11 +23,13 @@ export function ScoreBanner({ exam, autoSubmitted, answers = {}, onReset, onExit
     if (saved.current) return;
     saved.current = true;
     const id = crypto.randomUUID();
-    if (saveExamResult({ version: 1, id, exam, answers, autoSubmitted, submittedAt: new Date().toISOString() })) {
-      setSavedUrl(`/exam/result/${id}`);
-    } else {
-      setWarning('無法儲存結果至本機，請在離開前下載錯題。');
-    }
+    queueMicrotask(() => {
+      if (saveExamResult({ version: 1, id, exam, answers, autoSubmitted, submittedAt: new Date().toISOString() })) {
+        setSavedUrl(`/exam/result/${id}`);
+      } else {
+        setWarning('無法儲存結果至本機，請在離開前下載錯題。');
+      }
+    });
   }, [exam, answers, autoSubmitted]);
 
   return <ResultReport exam={exam} answers={answers} autoSubmitted={autoSubmitted} onReset={onReset} onExit={onExit}

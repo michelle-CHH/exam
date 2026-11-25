@@ -9,8 +9,10 @@ export function SavedResultClient({ sessionId }: { sessionId: string }) {
   const [result, setResult] = useState<SavedExamResult | null>(null);
   const [ready, setReady] = useState(false);
   useEffect(() => {
-    setResult(loadExamResult(sessionId));
-    setReady(true);
+    queueMicrotask(() => {
+      setResult(loadExamResult(sessionId));
+      setReady(true);
+    });
   }, [sessionId]);
   if (!ready) return <main className="exam-shell py-12">載入考試結果…</main>;
   if (!result) return (

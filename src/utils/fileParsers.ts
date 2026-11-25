@@ -78,7 +78,8 @@ function parseSubject(raw: string): SubjectId | null {
   for (const [key, val] of Object.entries(SUBJECT_PARSE_MAP)) {
     if (normalized.includes(key)) return val;
   }
-  return null;
+  // 支援自訂科目與多層分類（若未在 10 科名單，保留原始名稱）
+  return raw.trim();
 }
 
 function parseQuestionType(raw: string): 'single' | 'multiple' | 'true_false' | null {
@@ -388,7 +389,7 @@ export async function parseJsonExamFile(file: File): Promise<ExamUploadValidatio
   let rawText = '';
   try {
     rawText = await file.text();
-  } catch (err: any) {
+  } catch (err) {
     return {
       isValid: false,
       questions: [],
@@ -397,7 +398,7 @@ export async function parseJsonExamFile(file: File): Promise<ExamUploadValidatio
     };
   }
 
-  let parsedData: any;
+  let parsedData: unknown;
   try {
     parsedData = JSON.parse(rawText);
   } catch {
@@ -409,18 +410,19 @@ export async function parseJsonExamFile(file: File): Promise<ExamUploadValidatio
     };
   }
 
-  let items: any[] = [];
+  let items: Record<string, unknown>[] = [];
   if (Array.isArray(parsedData)) {
-    items = parsedData;
+    items = parsedData as Record<string, unknown>[];
   } else if (parsedData && typeof parsedData === 'object') {
-    if (Array.isArray(parsedData.questions)) {
-      items = parsedData.questions;
-    } else if (Array.isArray(parsedData.data)) {
-      items = parsedData.data;
-    } else if (Array.isArray(parsedData.items)) {
-      items = parsedData.items;
+    const dataObj = parsedData as Record<string, unknown>;
+    if (Array.isArray(dataObj.questions)) {
+      items = dataObj.questions as Record<string, unknown>[];
+    } else if (Array.isArray(dataObj.data)) {
+      items = dataObj.data as Record<string, unknown>[];
+    } else if (Array.isArray(dataObj.items)) {
+      items = dataObj.items as Record<string, unknown>[];
     } else {
-      items = [parsedData];
+      items = [dataObj];
     }
   }
 
@@ -556,7 +558,7 @@ export async function parseJsonExamFile(file: File): Promise<ExamUploadValidatio
     const explanation = String(item.Explanation || item.explanation || item.desc || '').trim();
 
     // 分類與學科
-    const categoryId = Number(item.category_id ?? item.categoryId ?? 1) || 1;
+    const categoryId = Number(item.category_id ?? item.categoryId ?? 0) || 0;
     const rawSubject = item.subjectId || item.subject || item.subject_id;
     const subjectId: SubjectId = rawSubject
       ? String(rawSubject).trim()
@@ -572,7 +574,7 @@ export async function parseJsonExamFile(file: File): Promise<ExamUploadValidatio
     }
 
     // 附圖
-    const rawImageUrl = item.image_url || item.imageUrl || item.img || '';
+    const rawImageUrl = String(item.image_url || item.imageUrl || item.img || '');
     const imageUrl = normalizeGoogleDriveImageUrl(rawImageUrl);
 
     // 題型判斷
@@ -654,7 +656,7 @@ export async function validateAndParseExamFile(file: File): Promise<ExamUploadVa
       const text = await file.text();
       rows = parseCsvRows(text);
     }
-  } catch (err: any) {
+  } catch (err) {
     return {
       isValid: false,
       questions: [],
@@ -760,10 +762,8 @@ export async function validateAndParseExamFile(file: File): Promise<ExamUploadVa
 
     // 1. 所屬學科
     const parsedSubject = parseSubject(rawSubject);
-    if (!rawSubject) {
+    if (!rawSubject || !rawSubject.trim()) {
       fieldErrors.push('「所屬學科」未填寫');
-    } else if (!parsedSubject) {
-      fieldErrors.push(`「所屬學科」內容無效（目前填寫："${rawSubject}"，請填寫有效學科如：數學、國文、英文、物理、化學、生物、天文、公民、地理、歷史）`);
     }
 
     // 2. 試題類型
@@ -1015,7 +1015,7 @@ export async function parseWrongQuestionsExcel(file: File): Promise<{
     if (optRaw.startsWith('[') && optRaw.endsWith(']')) {
       try {
         options = JSON.parse(optRaw);
-      } catch {}
+      } catch { }
     }
     if (!options.length) {
       const lines = optRaw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
@@ -1025,13 +1025,20 @@ export async function parseWrongQuestionsExcel(file: File): Promise<{
       options = ['選項 A', '選項 B', '選項 C', '選項 D'];
     }
 
+    const rawDiff = diffIdx !== -1 && r[diffIdx]?.trim() ? r[diffIdx].trim().toLowerCase() : '';
+    const diffVal: 'easy' | 'medium' | 'hard' = rawDiff.includes('hard') || rawDiff.includes('難')
+      ? 'hard'
+      : rawDiff.includes('easy') || rawDiff.includes('易')
+        ? 'easy'
+        : 'medium';
+
     const qItem: Question = {
       id,
       subjectId: subId,
       type: 'single',
       content,
-      difficulty: 'medium',
-      difficultyScore: 3,
+      difficulty: diffVal,
+      difficultyScore: diffVal === 'hard' ? 4 : diffVal === 'easy' ? 2 : 3,
       points: Number((pointsIdx !== -1 && r[pointsIdx]) || 5) || 5,
       tags: ['錯題本匯入'],
       updatedAt: formatSheetTimestamp(),

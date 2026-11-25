@@ -66,8 +66,8 @@ export default function QuestionSelectorPage({
         ? `🎉 成功為試算表建立標準分頁：${res.createdSheets.join(', ')}，並填入公用格式標題！`
         : `✅ 試算表格式已符合規範（test_bank, quiz_bank_publish, quiz_bank_unpublish, log）！`;
       setInitSheetMessage(msg);
-    } catch (err: any) {
-      setInitSheetMessage(`建立失敗: ${err.message || '未知錯誤'}`);
+    } catch (err) {
+      setInitSheetMessage(`建立失敗: ${(err as Error).message || '未知錯誤'}`);
     } finally {
       setIsInitializingSheet(false);
     }

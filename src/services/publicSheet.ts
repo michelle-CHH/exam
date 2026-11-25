@@ -1,7 +1,7 @@
 import { Question, ExamPaper, Exam, SheetTableSchema, ReadSpreadsheetResult, SubjectId, CategoryItem, AuditLog, UserProfile, RoleItem, AuthLoginResult } from '@/types';
 import { INITIAL_QUESTIONS, INITIAL_EXAM_PAPERS } from '@/data/initialData';
 import { formatSheetTimestamp } from '@/utils/formatters';
-import { formatOptionsToJsonObject, parseSheetOptionJson, extractSpreadsheetId } from '@/utils/sheetParser';
+import { formatOptionsToJsonObject, parseSheetOptionJson, extractSpreadsheetId, getOptionLetter } from '@/utils/sheetParser';
 
 export const ASSIGNED_EXAM_ID = 'assigned-demo';
 
@@ -11,7 +11,6 @@ export async function getAssignedExam(
   extraQuestions: Question[] = []
 ): Promise<Exam | null> {
   // 試卷查表：優先使用線上試卷 (extraExams: Google Sheet)；若離線或線上無試卷，才讀取 data 內試卷 INITIAL_EXAM_PAPERS
-  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
   const examMap = new Map<string, ExamPaper>();
 
   // 1. 載入預設初始試卷
@@ -48,7 +47,7 @@ export async function getAssignedExam(
           }
         }
       }
-    } catch {}
+    } catch { }
   }
 
   const paper = examMap.get(examId);
@@ -91,7 +90,7 @@ export async function getAssignedExam(
           }
         }
       }
-    } catch {}
+    } catch { }
   }
 
   const questionIds = Array.from(new Set(paper.questionIds || []));
@@ -114,7 +113,6 @@ export async function getAssignedExam(
     matchedQuestions = Array.from(questionMap.values()).slice(0, paper.questionCount || 10);
   }
 
-  const optionLetters = ['A', 'B', 'C', 'D', 'E'];
   const seenIds = new Set<string>();
   const uniqueMatchedQuestions = matchedQuestions.filter((q) => {
     if (!q || !q.id) return false;
@@ -132,7 +130,7 @@ export async function getAssignedExam(
       type: (q.type === 'multiple' ? 'multiple' : 'single') as 'single' | 'multiple' | 'boolean',
       prompt: q.content || q.question || '',
       options: rawOptions.map((text, oIdx) => ({
-        id: optionLetters[oIdx] || String(oIdx + 1),
+        id: getOptionLetter(oIdx),
         text,
       })),
       points: q.points || 2,
@@ -145,7 +143,7 @@ export async function getAssignedExam(
   return {
     id: paper.id,
     title: paper.title,
-    subtitle: (paper as any).subtitle || (paper.id === ASSIGNED_EXAM_ID ? '公職考試 ・ 50 題 ・ 60 分鐘' : `${paper.subject} ・ ${examQuestions.length} 題 ・ ${paper.durationMinutes} 分鐘`),
+    subtitle: (paper as { subtitle?: string }).subtitle || (paper.id === ASSIGNED_EXAM_ID ? '公職考試 ・ 50 題 ・ 60 分鐘' : `${paper.subject} ・ ${examQuestions.length} 題 ・ ${paper.durationMinutes} 分鐘`),
     durationSec: (paper.durationMinutes || 60) * 60,
     passingScore: paper.passingScore || 60,
     questions: examQuestions,
@@ -261,7 +259,7 @@ export const DATABASE_TABLE_SCHEMAS: Record<string, SheetTableSchema> = {
   },
 };
 
-export const INITIAL_CATEGORIES_DATA: any[] = [];
+export const INITIAL_CATEGORIES_DATA: CategoryItem[] = [];
 
 export const SUBJECT_TO_CATEGORY_ID: Record<string, number> = {};
 
@@ -334,7 +332,7 @@ export function getEnvConfiguredSpreadsheetUrl(): string {
   const url =
     process.env.NEXT_PUBLIC_GOOGLE_SHEET_URL ||
     process.env.GOOGLE_SHEET_URL ||
-    (typeof import.meta !== 'undefined' ? (import.meta as any).env?.NEXT_PUBLIC_GOOGLE_SHEET_URL || (import.meta as any).env?.VITE_GOOGLE_SHEET_URL : '') ||
+    (typeof import.meta !== 'undefined' ? (import.meta as unknown as { env?: Record<string, string> }).env?.NEXT_PUBLIC_GOOGLE_SHEET_URL || (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_GOOGLE_SHEET_URL : '') ||
     '';
   return url.trim();
 }
@@ -343,12 +341,12 @@ export function getEnvConfiguredScriptUrl(): string {
   const url =
     process.env.NEXT_PUBLIC_GOOGLE_SCRIPT_URL ||
     process.env.GOOGLE_SCRIPT_URL ||
-    (typeof import.meta !== 'undefined' ? (import.meta as any).env?.NEXT_PUBLIC_GOOGLE_SCRIPT_URL || (import.meta as any).env?.VITE_GOOGLE_SCRIPT_URL : '') ||
+    (typeof import.meta !== 'undefined' ? (import.meta as unknown as { env?: Record<string, string> }).env?.NEXT_PUBLIC_GOOGLE_SCRIPT_URL || (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_GOOGLE_SCRIPT_URL : '') ||
     '';
   return url.trim();
 }
 
-export async function postToGasScript(payload: Record<string, any>): Promise<any> {
+export async function postToGasScript(payload: Record<string, unknown>): Promise<unknown> {
   const scriptUrl = getEnvConfiguredScriptUrl();
 
   // 1. 在瀏覽器端優先透過 Next.js BFF API (/api/sheet) 轉發，解決跨網域 CORS 與 302 重新導向問題
@@ -373,7 +371,7 @@ export async function postToGasScript(payload: Record<string, any>): Promise<any
         const errJson = await bffRes.json().catch(() => ({}));
         throw new Error(errJson.error || `BFF 轉發錯誤 (${bffRes.status})`);
       }
-    } catch (bffErr: any) {
+    } catch (bffErr) {
       if (!scriptUrl) {
         throw bffErr;
       }
@@ -494,7 +492,7 @@ function generateBatchValues(
 ) {
   const userHeaders = DATABASE_TABLE_SCHEMAS.users.columns.map((c) => c.label);
   const nowStr = formatSheetTimestamp();
-  const userRows: any[][] = [
+  const userRows: (string | number)[][] = [
     userHeaders,
     [
       1,
@@ -538,13 +536,13 @@ function generateBatchValues(
   ];
 
   const roleHeaders = DATABASE_TABLE_SCHEMAS.roles.columns.map((c) => c.label);
-  const roleRows: any[][] = [
+  const roleRows: (string | number)[][] = [
     roleHeaders,
     ...INITIAL_ROLES_DATA.map((r) => [r.id, r.code, r.name, r.description, r.created_at]),
   ];
 
   const testBankHeaders = DATABASE_TABLE_SCHEMAS.test_bank.columns.map((c) => c.label);
-  const testBankRows: any[][] = [
+  const testBankRows: (string | number)[][] = [
     testBankHeaders,
     ...questions.map((q, idx) => {
       const categoryId = q.categoryId || 0;
@@ -570,13 +568,13 @@ function generateBatchValues(
   ];
 
   const categoryHeaders = DATABASE_TABLE_SCHEMAS.categories.columns.map((c) => c.label);
-  const categoryRows: any[][] = [
+  const categoryRows: (string | number)[][] = [
     categoryHeaders,
   ];
 
   const publishedExams = exams.filter((e) => e.status === 'published');
   const pubHeaders = DATABASE_TABLE_SCHEMAS.quiz_bank_publish.columns.map((c) => c.label);
-  const pubRows: any[][] = [
+  const pubRows: (string | number)[][] = [
     pubHeaders,
     ...publishedExams.map((e, idx) => [
       idx + 1,
@@ -593,7 +591,7 @@ function generateBatchValues(
 
   const draftExams = exams.filter((e) => e.status === 'draft');
   const unpubHeaders = DATABASE_TABLE_SCHEMAS.quiz_bank_unpublish.columns.map((c) => c.label);
-  const unpubRows: any[][] = [
+  const unpubRows: (string | number)[][] = [
     unpubHeaders,
     ...draftExams.map((e, idx) => [
       idx + 1,
@@ -609,7 +607,7 @@ function generateBatchValues(
   ];
 
   const logHeaders = DATABASE_TABLE_SCHEMAS.log.columns.map((c) => c.label);
-  const logRows: any[][] = [
+  const logRows: (string | number)[][] = [
     logHeaders,
     ...auditLogs.map((l, idx) => [
       idx + 1,
@@ -680,7 +678,7 @@ export async function ensureSpreadsheetTablesExist(
     throw new Error(err.error?.message || `無法讀取試算表資訊 (${metaRes.status})`);
   }
   const metaData = await metaRes.json();
-  const existingTitles = new Set((metaData.sheets || []).map((s: any) => s.properties?.title));
+  const existingTitles = new Set((metaData.sheets || []).map((s: { properties?: { title?: string } }) => s.properties?.title));
 
   const targetSheets = [
     'users',
@@ -823,8 +821,10 @@ export async function syncAllToSpreadsheet(
   };
 }
 
+type SheetRowValues = (string | number | boolean | null | undefined)[][];
+
 function parseTableValuesToResult(
-  tableValuesMap: Record<string, any[][]>,
+  tableValuesMap: Record<string, SheetRowValues>,
   spreadsheetTitle: string
 ): ReadSpreadsheetResult {
   const categories: CategoryItem[] = [];
@@ -909,8 +909,9 @@ function parseTableValuesToResult(
       }
 
       const points = Number(row[idxScore]) || 10;
-      const catId = Number(row[idxCategory]) || 3;
-      const subjectId = CATEGORY_ID_TO_SUBJECT[catId] || 'math';
+      const catId = Number(row[idxCategory]) || 0;
+      const matchedCat = categories.find((c) => c.id === catId);
+      const subjectId = CATEGORY_ID_TO_SUBJECT[catId] || (matchedCat ? matchedCat.categories_name : (catId ? String(catId) : 'other'));
       const rawTags = String(row[idxTags] || '');
       const tags = rawTags
         ? rawTags.split(/[,，、]/).map((t) => t.trim()).filter(Boolean)
@@ -921,14 +922,14 @@ function parseTableValuesToResult(
         idxTime >= 0
           ? Number(row[idxTime]) || 0
           : row.length > 12
-          ? Number(row[12]) || 0
-          : 0;
+            ? Number(row[12]) || 0
+            : 0;
       const imageUrlVal =
         idxImageUrl >= 0
           ? String(row[idxImageUrl] || '').trim()
           : row.length > 13
-          ? String(row[13] || '').trim()
-          : '';
+            ? String(row[13] || '').trim()
+            : '';
 
       let type: 'single' | 'multiple' | 'true_false' = 'single';
       if (answer.includes(',') || answer.includes('、') || answer.length > 2) {
@@ -984,7 +985,8 @@ function parseTableValuesToResult(
       const questionIds = rawQuestionIds
         ? rawQuestionIds.split(/[,，、\s]+/).map((s) => s.trim()).filter(Boolean)
         : undefined;
-      const subjectId = SUBJECT_NAME_MAP[subjectName] || 'math';
+      const matchedCatByName = categories.find((c) => c.categories_name === subjectName);
+      const subjectId = SUBJECT_NAME_MAP[subjectName] || (matchedCatByName ? String(matchedCatByName.id) : subjectName || 'other');
 
       publishedExams.push({
         id: quizId,
@@ -1028,7 +1030,8 @@ function parseTableValuesToResult(
       const questionIds = rawQuestionIds
         ? rawQuestionIds.split(/[,，、\s]+/).map((s) => s.trim()).filter(Boolean)
         : undefined;
-      const subjectId = SUBJECT_NAME_MAP[subjectName] || 'math';
+      const matchedCatByName = categories.find((c) => c.categories_name === subjectName);
+      const subjectId = SUBJECT_NAME_MAP[subjectName] || (matchedCatByName ? String(matchedCatByName.id) : subjectName || 'other');
 
       draftExams.push({
         id: quizId,
@@ -1121,7 +1124,7 @@ function parseTableValuesToResult(
  * 解析 roles 資料表列資料
  * 欄位: id, code, name, description, created_at
  */
-export function parseRolesFromSheetRows(roleRows: any[][]): RoleItem[] {
+export function parseRolesFromSheetRows(roleRows: SheetRowValues): RoleItem[] {
   if (!roleRows || roleRows.length === 0) {
     return [...INITIAL_ROLES_DATA];
   }
@@ -1170,7 +1173,7 @@ export function parseRolesFromSheetRows(roleRows: any[][]): RoleItem[] {
  * 欄位: id, uuid, status, role, name, identifier, credential, google_sheet_URL, last_login_at, created_at, updated_at
  */
 export function parseUsersFromSheetRows(
-  userRows: any[][],
+  userRows: SheetRowValues,
   roles: RoleItem[] = INITIAL_ROLES_DATA
 ): UserProfile[] {
   if (!userRows || userRows.length === 0) return [];
@@ -1218,12 +1221,12 @@ export function parseUsersFromSheetRows(
       rawStatusStr === '0'
         ? 0
         : rawStatusStr === '2'
-        ? 2
-        : rawStatusStr === '1'
-        ? 1
-        : Number.isFinite(Number(rawStatusStr)) && rawStatusStr !== ''
-        ? Number(rawStatusStr)
-        : 1;
+          ? 2
+          : rawStatusStr === '1'
+            ? 1
+            : Number.isFinite(Number(rawStatusStr)) && rawStatusStr !== ''
+              ? Number(rawStatusStr)
+              : 1;
 
     const rawRoleCode = String(row[idxRole] ?? 'USER').trim() || 'USER';
     const matchedRole =
@@ -1336,11 +1339,11 @@ export async function fetchUsersAndRolesFromSheet(
       );
       if (res.ok) {
         const data = await res.json();
-        const valueRanges: any[] = data.valueRanges || [];
-        const map: Record<string, any[][]> = {};
+        const valueRanges: { range?: string; values?: unknown[][] }[] = data.valueRanges || [];
+        const map: Record<string, (string | number | null | undefined)[][]> = {};
         valueRanges.forEach((vr) => {
           const name = (vr.range || '').split('!')[0].replace(/['"]/g, '');
-          map[name] = vr.values || [];
+          map[name] = (vr.values as (string | number | null | undefined)[][]) || [];
         });
         const roles = parseRolesFromSheetRows(map['roles'] || []);
         const users = parseUsersFromSheetRows(map['users'] || [], roles);
@@ -1383,11 +1386,11 @@ export async function fetchUsersAndRolesFromSheet(
         if (!match || !match[1]) return;
         const json = JSON.parse(match[1]);
         if (json.status !== 'ok' || !json.table) return;
-        const cols: string[] = (json.table.cols || []).map((c: any) =>
+        const cols: string[] = (json.table.cols || []).map((c: { label?: string; id?: string }) =>
           c?.label ? String(c.label).trim() : ''
         );
-        const rows: string[][] = (json.table.rows || []).map((r: any) =>
-          (r.c || []).map((cell: any) => {
+        const rows: string[][] = (json.table.rows || []).map((r: { c?: { v?: unknown; f?: string }[] }) =>
+          (r.c || []).map((cell: { v?: unknown; f?: string } | null) => {
             if (!cell) return '';
             if (cell.f !== undefined && cell.f !== null) return String(cell.f);
             if (cell.v !== undefined && cell.v !== null) return String(cell.v);
@@ -1424,7 +1427,7 @@ export async function fetchUsersAndRolesFromSheet(
           };
         }
       }
-    } catch {}
+    } catch { }
   }
 
   throw new Error('無法讀取 Google Sheet 中的 users 資料表，請確認試算表權限或網路連線');
@@ -1536,7 +1539,7 @@ export async function readPublicSpreadsheetViaGviz(
   spreadsheetId: string
 ): Promise<ReadSpreadsheetResult> {
   const targetTables = ['categories', 'test_bank', 'quiz_bank_publish', 'quiz_bank_unpublish', 'users', 'roles', 'log'];
-  const tableValuesMap: Record<string, any[][]> = {};
+  const tableValuesMap: Record<string, SheetRowValues> = {};
 
   await Promise.all(
     targetTables.map(async (sheetName) => {
@@ -1551,13 +1554,13 @@ export async function readPublicSpreadsheetViaGviz(
         if (json.status !== 'ok' || !json.table) return;
 
         const hasColLabels = (json.table.cols || []).some(
-          (c: any) => c?.label && String(c.label).trim() !== ''
+          (c: { label?: string }) => c?.label && String(c.label).trim() !== ''
         );
-        const cols: string[] = (json.table.cols || []).map((c: any) =>
+        const cols: string[] = (json.table.cols || []).map((c: { label?: string; id?: string }) =>
           c?.label ? String(c.label).trim() : ''
         );
-        const rows: any[][] = (json.table.rows || []).map((r: any) =>
-          (r.c || []).map((cell: any) => {
+        const rows: SheetRowValues = (json.table.rows || []).map((r: { c?: { v?: unknown; f?: string }[] }) =>
+          (r.c || []).map((cell: { v?: unknown; f?: string } | null) => {
             if (!cell) return '';
             if (cell.f !== undefined && cell.f !== null) return cell.f;
             if (cell.v !== undefined && cell.v !== null) return cell.v;
@@ -1602,7 +1605,7 @@ export async function readAllTablesFromSpreadsheet(
   }
   const meta = await metaRes.json();
   const spreadsheetTitle = meta.properties?.title || 'Google 試算表';
-  const existingSheetTitles = new Set((meta.sheets || []).map((s: any) => s.properties?.title));
+  const existingSheetTitles = new Set((meta.sheets || []).map((s: { properties?: { title?: string } }) => s.properties?.title));
 
   // If 'log' sheet doesn't exist yet and we have a valid accessToken, auto-create it and write header
   if (!existingSheetTitles.has('log')) {
@@ -1637,12 +1640,12 @@ export async function readAllTablesFromSpreadsheet(
   }
 
   const batchGetData = await batchGetRes.json();
-  const valueRanges: any[] = batchGetData.valueRanges || [];
+  const valueRanges: { range?: string; values?: unknown[][] }[] = batchGetData.valueRanges || [];
 
-  const tableValuesMap: Record<string, any[][]> = {};
+  const tableValuesMap: Record<string, SheetRowValues> = {};
   valueRanges.forEach((vr) => {
     const rangeName = (vr.range || '').split('!')[0].replace(/['"]/g, '');
-    tableValuesMap[rangeName] = vr.values || [];
+    tableValuesMap[rangeName] = (vr.values as SheetRowValues) || [];
   });
 
   return parseTableValuesToResult(tableValuesMap, spreadsheetTitle);
@@ -1666,7 +1669,7 @@ export async function fetchSpreadsheetStats(
 
   const data = await res.json();
   const title = data.properties?.title || 'Google 試算表';
-  const sheets = (data.sheets || []).map((s: any) => ({
+  const sheets = (data.sheets || []).map((s: { properties?: { sheetId?: number; title?: string; gridProperties?: { rowCount?: number; columnCount?: number } } }) => ({
     name: s.properties?.title || '',
     rowCount: s.properties?.gridProperties?.rowCount || 0,
     columnCount: s.properties?.gridProperties?.columnCount || 0,
@@ -1708,9 +1711,9 @@ export async function appendUserToSpreadsheet(
         rowValues,
       });
       return { success: true, message: `成功透過 GAS 將帳號「${user.identifier}」寫入 users 資料表！` };
-    } catch (gasErr: any) {
+    } catch (gasErr) {
       if (!accessToken) {
-        throw new Error(`GAS 寫入失敗: ${gasErr.message || gasErr}，無法寫入 users 資料表`);
+        throw new Error(`GAS 寫入失敗: ${(gasErr as Error).message || gasErr}，無法寫入 users 資料表`);
       }
       console.warn('GAS appendUser error, fallback to REST API:', gasErr);
     }
@@ -1775,7 +1778,7 @@ export async function updateUserInSpreadsheet(
         rowValues,
       });
       return { success: true, message: `成功透過 GAS 更新帳號「${user.identifier}」至 users 資料表！` };
-    } catch (gasErr: any) {
+    } catch (gasErr) {
       if (!accessToken) {
         throw new Error(`GAS 寫入失敗: ${gasErr.message || gasErr}，無法更新 users 資料表`);
       }
@@ -1799,7 +1802,7 @@ export async function updateUserInSpreadsheet(
     );
     if (fetchRes.ok) {
       const data = await fetchRes.json();
-      const rows: any[][] = data.values || [];
+      const rows: unknown[][] = data.values || [];
       totalRows = rows.length;
       for (let i = 1; i < rows.length; i++) {
         const r = rows[i];
@@ -1978,10 +1981,10 @@ export async function batchAppendQuestionsToSpreadsheet(
           keyColumnIndex: 1,
           rows,
         });
-        if (gasRes && gasRes.success !== false) {
+        if (gasRes && (gasRes as { success?: boolean }).success !== false) {
           batchSuccess = true;
         }
-      } catch (err: any) {
+      } catch {
         // GAS 若不支援 batchUpsertRows，使用已驗證相容的 replaceSheets 整批替換
       }
 
@@ -2034,7 +2037,7 @@ export async function batchAppendQuestionsToSpreadsheet(
           count: total,
         };
       }
-    } catch (batchErr: any) {
+    } catch (batchErr) {
       console.warn('Batch write failed, falling back to sequential upsert:', batchErr);
     }
   }
@@ -2132,7 +2135,7 @@ export async function syncExamsOnlyToSpreadsheet(
 ): Promise<void> {
   const publishedExams = exams.filter((e) => e.status === 'published');
   const pubHeaders = [...DATABASE_TABLE_SCHEMAS.quiz_bank_publish.columns.map((c) => c.label), 'test_id'];
-  const pubRows: any[][] = [
+  const pubRows: (string | number)[][] = [
     pubHeaders,
     ...publishedExams.map((e, idx) => [
       idx + 1,
@@ -2150,7 +2153,7 @@ export async function syncExamsOnlyToSpreadsheet(
 
   const draftExams = exams.filter((e) => e.status === 'draft');
   const unpubHeaders = [...DATABASE_TABLE_SCHEMAS.quiz_bank_unpublish.columns.map((c) => c.label), 'test_id'];
-  const unpubRows: any[][] = [
+  const unpubRows: (string | number)[][] = [
     unpubHeaders,
     ...draftExams.map((e, idx) => [
       idx + 1,
@@ -2223,7 +2226,7 @@ export async function saveCategoriesToSpreadsheet(
   categories: CategoryItem[]
 ): Promise<{ success: boolean; message: string }> {
   const categoryHeaders = ['id', 'categories_name', 'parent_id', 'level', 'sort_order'];
-  const categoryRows: any[][] = [
+  const categoryRows: (string | number)[][] = [
     categoryHeaders,
     ...categories.map((c, idx) => [
       c.id,
@@ -2259,9 +2262,9 @@ export async function saveCategoriesToSpreadsheet(
         sheets: [{ sheetName: 'categories', rows: categoryRows }],
       });
       return { success: true, message: `成功同步 ${categories.length} 個學科分類至 Google 試算表！` };
-    } catch (e: any) {
+    } catch (e) {
       if (!accessToken) {
-        return { success: true, message: `分類已暫存於本機快照（雲端同步失敗: ${e.message}）` };
+        return { success: true, message: `分類已暫存於本機快照（雲端同步失敗: ${(e as Error).message}）` };
       }
     }
   }
