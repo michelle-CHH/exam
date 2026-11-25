@@ -220,11 +220,6 @@ describe('fileParsers - JSON exam file upload', () => {
     const file = new File([jsonString], 'test_exam.json', { type: 'application/json' });
 
     const result = await validateAndParseExamFile(file);
-    if (!result.isValid) {
-      const rows = parseCsvRows(csv);
-      console.log('DEBUG CSV ROWS:', rows);
-      console.log('DEBUG CSV PARSE ERROR:', JSON.stringify(result.rowErrors), result.fileError);
-    }
 
     expect(result.isValid).toBe(true);
     expect(result.rowErrors).toHaveLength(0);

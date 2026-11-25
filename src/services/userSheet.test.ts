@@ -272,6 +272,7 @@ describe('userSheet - appendQuestionToUserSheet & appendExamToUserSheet', () => 
 
     const question: Question = {
       id: 'Q-NEW-1',
+      subjectId: 'chinese',
       content: '新增測試題',
       options: ['A', 'B'],
       correctAnswer: 'A',
@@ -290,7 +291,13 @@ describe('userSheet - appendQuestionToUserSheet & appendExamToUserSheet', () => 
     const paper: ExamPaper = {
       id: 'P-NEW-1',
       title: '全新期末考',
+      description: '測試考卷描述',
       subject: '物理',
+      subjectId: 'physics',
+      difficultyLv: 2,
+      durationMinutes: 60,
+      status: 'published',
+      createdAt: '2026-11-25 12:00:00',
       questionCount: 10,
       totalScore: 100,
     };

@@ -34,19 +34,17 @@ describe('fileExport - filterWrongQuestionsForExport', () => {
     const wrongRecords: WrongQuestionRecord[] = [
       {
         questionId: 'Q-01',
-        prompt: '題目 1',
-        userAnswer: 'A',
-        correctAnswer: 'B',
-        explanation: '',
-        status: '錯誤',
+        userAnswer: ['A'],
+        correctAnswer: ['B'],
+        subjectId: 'chinese',
+        timestamp: '2026-11-25 12:00:00',
       },
       {
         questionId: 'Q-03',
-        prompt: '題目 3',
-        userAnswer: 'C',
-        correctAnswer: 'D',
-        explanation: '',
-        status: '錯誤',
+        userAnswer: ['C'],
+        correctAnswer: ['D'],
+        subjectId: 'chinese',
+        timestamp: '2026-11-25 12:00:00',
       },
     ];
 
@@ -59,11 +57,10 @@ describe('fileExport - filterWrongQuestionsForExport', () => {
     const wrongRecords: WrongQuestionRecord[] = [
       {
         questionId: 'Q-99',
-        prompt: '不存在題目',
-        userAnswer: 'A',
-        correctAnswer: 'B',
-        explanation: '',
-        status: '錯誤',
+        userAnswer: ['A'],
+        correctAnswer: ['B'],
+        subjectId: 'chinese',
+        timestamp: '2026-11-25 12:00:00',
       },
     ];
 
