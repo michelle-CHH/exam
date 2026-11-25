@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { Question, ExamPaper, UserProfile } from '@/types';
 import { INITIAL_QUESTIONS } from '@/data/initialData';
 import {
@@ -33,6 +34,7 @@ export default function QuestionSelectorPage({
   onOpenUploadExam,
   onExamCreated: onExamCreatedProp,
 }: QuestionSelectorPageProps = {}) {
+  const router = useRouter();
   const user = currentUser ?? (() => {
     if (typeof window === 'undefined') return null;
     try {
@@ -118,8 +120,8 @@ export default function QuestionSelectorPage({
     }
     if (onNavigate) {
       onNavigate('user-exam-select');
-    } else if (typeof window !== 'undefined') {
-      window.location.href = '/exams/select';
+    } else {
+      router.push('/exams/select');
     }
   };
 
@@ -127,8 +129,8 @@ export default function QuestionSelectorPage({
     setIsGuardModalOpen(false);
     if (onNavigate) {
       onNavigate('user-settings');
-    } else if (typeof window !== 'undefined') {
-      window.location.href = '/profile';
+    } else {
+      router.push('/profile');
     }
   };
 

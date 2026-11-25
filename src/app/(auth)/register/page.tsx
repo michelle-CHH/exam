@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { UserProfile } from '@/types';
 import { RegisterForm } from './_components/RegisterForm';
 
@@ -18,19 +18,21 @@ export default function RegisterPage({
   spreadsheetId,
   accessToken,
 }: RegisterPageProps = {}) {
+  const router = useRouter();
+
   const handleSuccess = (user: UserProfile) => {
     if (onRegisterSuccess) {
       onRegisterSuccess(user);
-    } else if (typeof window !== 'undefined') {
-      window.location.href = '/login';
+    } else {
+      router.push('/login');
     }
   };
 
   const handleGoLogin = () => {
     if (onNavigateToLogin) {
       onNavigateToLogin();
-    } else if (typeof window !== 'undefined') {
-      window.location.href = '/login';
+    } else {
+      router.push('/login');
     }
   };
 

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import type { Answer, Exam } from '@/types/exam';
 import { clearSession } from '@/contexts/examStorage';
@@ -28,6 +29,7 @@ export function ResultReport({
   savedUrl?: string;
   warning?: string;
 }) {
+  const router = useRouter();
   const report = useMemo(() => buildExamReport(exam, answers), [exam, answers]);
   const [expanded, setExpanded] = useState(initiallyExpanded);
   const [filter, setFilter] = useState('all');
@@ -44,8 +46,8 @@ export function ResultReport({
     setShowExitConfirm(false);
     if (onExit) {
       onExit();
-    } else if (typeof window !== 'undefined') {
-      window.location.href = '/';
+    } else {
+      router.push('/');
     }
   };
 

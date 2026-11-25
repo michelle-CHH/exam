@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { UserProfile } from '@/types';
 
 interface ImportUploaderProps {
@@ -18,7 +19,8 @@ export const ImportUploader: React.FC<ImportUploaderProps> = ({
   isLoadingSheet = false,
   onNavigate,
 }) => {
-  const [syncStatus, setSyncStatus] = useState<string>('');
+  const router = useRouter();
+  const [syncStatus] = useState<string>('');
 
   const user = currentUser ?? (() => {
     if (typeof window === 'undefined') return null;
@@ -41,8 +43,8 @@ export const ImportUploader: React.FC<ImportUploaderProps> = ({
       ) {
         if (onNavigate) {
           onNavigate('user-settings');
-        } else if (typeof window !== 'undefined') {
-          window.location.href = '/profile';
+        } else {
+          router.push('/profile');
         }
       }
       return;

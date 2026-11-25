@@ -2,9 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ASSIGNED_EXAM_ID,
   getAssignedExam,
+  getSubjectDisplayName,
   parseRolesFromSheetRows,
   parseUsersFromSheetRows,
+  readAllTablesFromSpreadsheet,
   updateUserInSpreadsheet,
+  verifyUserSessionActive,
 } from "@/services/publicSheet";
 
 describe("getAssignedExam", () => {
@@ -222,5 +225,159 @@ describe("parseRolesFromSheetRows & parseUsersFromSheetRows", () => {
     } finally {
       global.fetch = originalFetch;
     }
+  });
+
+  describe("getSubjectDisplayName", () => {
+    const mockCategories = [
+      { id: 101, categories_name: "進階微積分", parent_id: 0, level: 1, sort_order: 1 },
+    ];
+
+    it("returns '未分類' for empty or nullish inputs", () => {
+      expect(getSubjectDisplayName(null)).toBe("未分類");
+      expect(getSubjectDisplayName("   ")).toBe("未分類");
+      expect(getSubjectDisplayName(undefined)).toBe("未分類");
+    });
+
+    it("resolves name from categories list by id or name", () => {
+      expect(getSubjectDisplayName("101", mockCategories)).toBe("進階微積分");
+      expect(getSubjectDisplayName("進階微積分", mockCategories)).toBe("進階微積分");
+    });
+
+    it("resolves standard builtin subjects", () => {
+      expect(getSubjectDisplayName("math")).toBe("數學");
+      expect(getSubjectDisplayName("chinese")).toBe("國文");
+      expect(getSubjectDisplayName("physics")).toBe("物理");
+      expect(getSubjectDisplayName("history")).toBe("歷史");
+    });
+
+    it("preserves custom subject name if not in categories or builtins", () => {
+      expect(getSubjectDisplayName("機器學習")).toBe("機器學習");
+    });
+  });
+
+  describe("readAllTablesFromSpreadsheet & verifyUserSessionActive", () => {
+    it("reads and parses all spreadsheet tables using batchGet", async () => {
+      const originalFetch = global.fetch;
+
+      const mockMetaResponse = {
+        properties: { title: "測試資料庫" },
+        sheets: [
+          { properties: { title: "categories" } },
+          { properties: { title: "test_bank" } },
+          { properties: { title: "quiz_bank_publish" } },
+          { properties: { title: "roles" } },
+          { properties: { title: "users" } },
+        ],
+      };
+
+      const mockBatchGetResponse = {
+        valueRanges: [
+          {
+            range: "categories!A1:Z500",
+            values: [
+              ["id", "categories_name", "parent_id", "level", "sort_order"],
+              [1, "數學類", 0, 1, 1],
+            ],
+          },
+          {
+            range: "test_bank!A1:Z500",
+            values: [
+              ["id", "test_id", "question", "option", "answer", "explanation", "difficulty", "score", "category_id", "tags"],
+              [1, "Q-01", "1+1=?", '["1", "2"]', "B", "基礎加法", "easy", 10, 1, "數學"],
+            ],
+          },
+          {
+            range: "quiz_bank_publish!A1:Z500",
+            values: [
+              ["id", "quiz_id", "quiz_name", "categories", "difficulty", "number", "score", "time", "update_time", "test_id"],
+              [1, "EX-01", "基礎考卷", "數學", 3, 1, 10, 30, "2026-11-25", "Q-01"],
+            ],
+          },
+          {
+            range: "roles!A1:Z500",
+            values: [
+              ["id", "code", "name"],
+              [1, "ADMIN", "管理員"],
+            ],
+          },
+          {
+            range: "users!A1:Z500",
+            values: [
+              ["id", "uuid", "status", "role", "name", "identifier"],
+              [1, "u-01", 1, "ADMIN", "張管理", "admin"],
+            ],
+          },
+        ],
+      };
+
+      global.fetch = vi.fn().mockImplementation(async (url: string) => {
+        if (url.includes("includeGridData=false")) {
+          return { ok: true, json: async () => mockMetaResponse };
+        }
+        return { ok: true, json: async () => mockBatchGetResponse };
+      });
+
+      try {
+        const result = await readAllTablesFromSpreadsheet("token", "sheet-id");
+        expect(result.spreadsheetTitle).toBe("測試資料庫");
+        expect(result.categories).toHaveLength(1);
+        expect(result.categories[0].categories_name).toBe("數學類");
+        expect(result.questions).toHaveLength(1);
+        expect(result.questions[0].id).toBe("Q-01");
+        expect(result.publishedExams).toHaveLength(1);
+        expect(result.users).toHaveLength(1);
+        expect(result.roles).toHaveLength(1);
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    it("verifies user session status correctly", async () => {
+      const originalFetch = global.fetch;
+
+      global.fetch = vi.fn().mockImplementation(async (url: string) => {
+        if (url.includes("sheet=users")) {
+          const csvText = [
+            'id,uuid,status,role,name,identifier,credential,google_sheet_url,last_login_at,created_at,updated_at,current_session_id',
+            '1,u-01,1,USER,正常用戶,user1,,,2026/11/25,2026/01/01,2026/11/25,sess-current',
+          ].join('\n');
+          return {
+            ok: true,
+            text: async () => csvText,
+            json: async () => ({}),
+          };
+        }
+        if (url.includes("sheet=roles")) {
+          const csvText = 'id,code,name,description,created_at\n1,USER,用戶,一般用戶,2026/01/01';
+          return {
+            ok: true,
+            text: async () => csvText,
+            json: async () => ({}),
+          };
+        }
+        return {
+          ok: true,
+          text: async () => '',
+          json: async () => ({ values: [] }),
+        };
+      });
+
+      try {
+        // Same session
+        const res1 = await verifyUserSessionActive("user1", "sess-current", "sheet-id");
+        expect(res1.isValid).toBe(true);
+
+        // Different session (logged in on another device)
+        const res2 = await verifyUserSessionActive("user1", "sess-other", "sheet-id");
+        expect(res2.isValid).toBe(false);
+        expect(res2.reason).toContain("其他裝置登入");
+
+        // Missing arguments
+        const res3 = await verifyUserSessionActive("", "");
+        expect(res3.isValid).toBe(true);
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
   });
 });

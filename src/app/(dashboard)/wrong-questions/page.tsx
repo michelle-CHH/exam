@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import type { UserProfile, Question, Exam, SubjectId, ExamPaper } from '@/types';
+import { useRouter } from 'next/navigation';
+import type { UserProfile, Question, Exam, SubjectId, ExamPaper, DifficultyLevel } from '@/types';
 import { ImportUploader } from '@/app/(dashboard)/wrong-questions/_components/ImportUploader';
 import { RetestActionCard } from '@/app/(dashboard)/wrong-questions/_components/RetestActionCard';
 import { ExamGenerationModal } from '@/app/(dashboard)/exams/_components/ExamFormModal';
 import { parseWrongQuestionsExcel } from '@/utils/fileParsers';
-import { fetchWrongQuestionsFromUserSheet, WrongQuestionRecord } from '@/services/userSheet';
+import { fetchWrongQuestionsFromUserSheet } from '@/services/userSheet';
 import { getAccessToken, googleSignIn } from '@/services/googleAuth';
 import { formatSheetTimestamp } from '@/utils/formatters';
 import { getOptionLetter } from '@/utils/sheetParser';
@@ -54,6 +55,7 @@ export default function WrongQuestionsPage({
   onNavigate,
   onStartExam,
 }: WrongQuestionsPageProps = {}) {
+  const router = useRouter();
   const [records, setRecords] = useState<StoredWrongRecord[]>([]);
   const [importMessage, setImportMessage] = useState<string>('');
   const [isLoadingSheet, setIsLoadingSheet] = useState(false);
@@ -81,7 +83,7 @@ export default function WrongQuestionsPage({
       try {
         const savedNew = localStorage.getItem('quiz_wrong_records_book');
         if (savedNew) {
-          const loaded: StoredWrongRecord[] = JSON.parse(savedNew).map((r: any) => ({
+          const loaded: StoredWrongRecord[] = JSON.parse(savedNew).map((r: Record<string, unknown>) => ({
             ...r,
             submittedAt: typeof r.submittedAt === 'number' && r.submittedAt > 0
               ? r.submittedAt
@@ -114,7 +116,7 @@ export default function WrongQuestionsPage({
               status: 'wrong',
               subject: q.subject || getSubjectDisplayName(q.subjectId),
               subjectId: q.subjectId || '未分類',
-              difficulty: (q.difficulty as any) || 'medium',
+              difficulty: (q.difficulty as DifficultyLevel) || 'medium',
               points: q.points || 5,
               submittedAt: Date.now(),
             };
@@ -202,7 +204,7 @@ export default function WrongQuestionsPage({
           status: isUnanswered ? 'unanswered' : 'wrong',
           subject: subName,
           subjectId: rawSub,
-          difficulty: (matchedQ?.difficulty as any) || 'medium',
+          difficulty: (matchedQ?.difficulty as DifficultyLevel) || 'medium',
           points: matchedQ?.points || 5,
           submittedAt: parsedTime,
         };
@@ -216,8 +218,8 @@ export default function WrongQuestionsPage({
       saveRecords(merged);
       setImportMessage(`✅ 成功匯入 ${newItems.length} 道錯題！已自動收錄至待複習清單中。`);
       alert(`🎉 成功匯入 ${newItems.length} 題錯題！\n您可於上方直接點擊「開始錯題重測」進行二次練習。`);
-    } catch (err: any) {
-      alert(`匯入錯題檔案失敗：${err?.message || '未知錯誤'}`);
+    } catch (err: unknown) {
+      alert(`匯入錯題檔案失敗：${(err as Error)?.message || '未知錯誤'}`);
       setImportMessage('');
     }
   };
@@ -296,9 +298,9 @@ export default function WrongQuestionsPage({
       saveRecords(merged);
       setImportMessage(`🎉 成功從個人 Google 試算表同步匯入 ${sheetRecords.length} 道錯題！`);
       alert(`🎉 成功從雲端試算表匯入 ${sheetRecords.length} 道錯題！已自動為您收錄。`);
-    } catch (err: any) {
-      alert(`從 Google 試算表匯入錯題失敗：${err?.message || '未知錯誤'}`);
-      setImportMessage(`匯入失敗：${err?.message || '未知錯誤'}`);
+    } catch (err: unknown) {
+      alert(`從 Google 試算表匯入錯題失敗：${(err as Error)?.message || '未知錯誤'}`);
+      setImportMessage(`匯入失敗：${(err as Error)?.message || '未知錯誤'}`);
     } finally {
       setIsLoadingSheet(false);
     }
@@ -312,7 +314,7 @@ export default function WrongQuestionsPage({
       difficulty: r.difficulty,
       difficultyScore: r.difficulty === 'hard' ? 4 : r.difficulty === 'easy' ? 2 : 3,
       points: r.points || 5,
-      type: (r.correctAnswer.includes(',') ? 'multiple' : 'single') as any,
+      type: (r.correctAnswer.includes(',') ? 'multiple' : 'single') as 'multiple' | 'single',
       options: r.options.map((o) => `${o.id}. ${o.text}`),
       correctAnswer: r.correctAnswer,
       explanation: r.explanation,
@@ -359,12 +361,12 @@ export default function WrongQuestionsPage({
 
     if (onStartExam) {
       onStartExam(retestExam);
-    } else if (typeof window !== 'undefined') {
+    } else {
       try {
         const existingExams = JSON.parse(localStorage.getItem('quiz_custom_exams') || '[]');
         localStorage.setItem('quiz_custom_exams', JSON.stringify([retestExam, ...existingExams]));
       } catch { }
-      window.location.href = `/exam/${retestExam.id}`;
+      router.push(`/exam/${retestExam.id}`);
     }
   };
 

@@ -32,8 +32,6 @@ import {
   getEnvConfiguredSpreadsheetUrl,
   getEnvConfiguredScriptUrl,
   extractSpreadsheetId,
-  fetchSpreadsheetStats,
-  syncAllToSpreadsheet,
   readAllTablesFromSpreadsheet,
   appendQuestionToSpreadsheet,
   batchAppendQuestionsToSpreadsheet,
@@ -135,8 +133,6 @@ export default function App() {
       null
     );
   });
-  const [, setIsReconnectingSheets] = useState(false);
-  const [, setIsSyncingSheets] = useState(false);
   const [isLoadingSheetData, setIsLoadingSheetData] = useState(false);
   const [isSyncingQuestions, setIsSyncingQuestions] = useState(false);
   const isSyncingQuestionsRef = useRef(false);
@@ -528,6 +524,7 @@ export default function App() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [questions.length, examPapers.length]);
 
   useEffect(() => {
@@ -539,6 +536,7 @@ export default function App() {
     return () => {
       if (unsubscribe) unsubscribe();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Automatically read spreadsheet upon entering any page (question-bank, exam-papers, etc.)
@@ -546,135 +544,8 @@ export default function App() {
     queueMicrotask(() => {
       handleFetchSpreadsheetData(true);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePage]);
-
-  const handleReconnectSheets = async () => {
-    setIsReconnectingSheets(true);
-    try {
-      const targetUrl = connectedSpreadsheetUrl || envSheetUrl;
-      const targetId = connectedSpreadsheetId || envSheetId;
-
-      if (!targetId || !targetUrl) {
-        setHasSyncedSheet(false);
-        showToast('未設定 Google 試算表網址，請在 .env 中填寫 NEXT_PUBLIC_GOOGLE_SHEET_URL', 'warning');
-        setIsReconnectingSheets(false);
-        return;
-      }
-
-      let token = await getAccessToken();
-      if (!token) {
-        const signRes = await googleSignIn();
-        token = signRes?.accessToken || null;
-      }
-
-      if (!token) {
-        setHasSyncedSheet(false);
-        showToast('Google 帳號授權未完成或登入已取消', 'warning');
-        setIsReconnectingSheets(false);
-        return;
-      }
-
-      const stats = await fetchSpreadsheetStats(token, targetId);
-      handleUpdateSpreadsheetConnection(targetId, targetUrl);
-
-      try {
-        const result = await readAllTablesFromSpreadsheet(token, targetId);
-        setCategories(result.categories);
-        setQuestions((prev) => {
-          const remoteIds = new Set(result.questions.map((q) => q.id));
-          const localUnsynced = prev.filter((q) => !remoteIds.has(q.id));
-          return [...localUnsynced, ...result.questions];
-        });
-        setExamPapers((prev) => {
-          const remoteIds = new Set(result.allExams.map((e) => e.id));
-          const localUnsynced = prev.filter((e) => !remoteIds.has(e.id));
-          return [...localUnsynced, ...result.allExams];
-        });
-        setAuditLogs(result.auditLogs);
-        setHasSyncedSheet(true);
-        setIsOnline(true);
-        showToast(`公用資料庫連線成功！已從「${stats.title}」載入 ${result.categories.length} 個科目、${result.questions.length} 題試題及 ${result.allExams.length} 份試卷。`, 'success');
-      } catch (readErr) {
-        setHasSyncedSheet(false);
-        showToast(`試算表「${stats.title}」讀取資料表失敗，請確認試算表架構`, 'warning');
-      }
-    } catch (err) {
-      console.error('Reconnect error:', err);
-      setHasSyncedSheet(false);
-      showToast(`連線失敗: ${(err as Error).message || '請確認試算表網址或權限'}`, 'error');
-    } finally {
-      setIsReconnectingSheets(false);
-    }
-  };
-
-  const handleSyncMockDataToSheets = async () => {
-    setIsSyncingSheets(true);
-    try {
-      const targetUrl = connectedSpreadsheetUrl || envSheetUrl;
-      const targetId = connectedSpreadsheetId || envSheetId;
-
-      if (!targetId || !targetUrl) {
-        showToast('未設定 Google 試算表網址，請確認 .env 或試算表連結', 'warning');
-        setIsSyncingSheets(false);
-        return;
-      }
-
-      let token = await getAccessToken();
-      if (!token) {
-        showToast('正在開啟 Google 授權視窗，請允許試算表存取權限...', 'info');
-        const signRes = await googleSignIn();
-        token = signRes?.accessToken || null;
-      }
-
-      if (!token) {
-        showToast('Google 帳號授權未完成或登入已取消', 'warning');
-        setIsSyncingSheets(false);
-        return;
-      }
-
-      const questionsToSync = questions;
-      const examsToSync = examPapers;
-
-      const now = formatSheetTimestamp();
-      const newLogId = `#LOG-SYNC-${Date.now().toString().slice(-4)}`;
-      const syncLogEntry: AuditLog = {
-        id: newLogId,
-        action: '題庫試卷完整同步至 Google 試算表',
-        target: `test_bank (${questionsToSync.length} 題), 試卷 (${examsToSync.length} 份)`,
-        operator: currentOperatorName,
-        timestamp: now,
-        status: 'success',
-      };
-      const logsToSync = [syncLogEntry, ...auditLogs];
-
-      showToast('正在將題目與考卷資料寫入 Google 試算表 (test_bank)...', 'info');
-      const result = await syncAllToSpreadsheet(token, targetId, targetUrl, questionsToSync, examsToSync, logsToSync);
-
-      setQuestions(questionsToSync);
-      setExamPapers(examsToSync);
-      setAuditLogs(logsToSync);
-      setHasSyncedSheet(true);
-      handleUpdateSpreadsheetConnection(targetId, targetUrl);
-
-      setNotifications((prev) => [
-        {
-          id: `notif-${Date.now()}`,
-          title: `成功將 ${questionsToSync.length} 筆題庫試題寫入 Google 試算表「test_bank」！`,
-          time: '剛剛',
-          read: false,
-          type: 'success',
-        },
-        ...prev,
-      ]);
-
-      showToast(`✅ 成功將 ${questionsToSync.length} 筆題目與考卷寫入 Google 試算表！`, 'success');
-    } catch (err) {
-      console.error('Sync mock data error:', err);
-      showToast(`寫入失敗: ${(err as Error).message || '請確認試算表網址或權限'}`, 'error');
-    } finally {
-      setIsSyncingSheets(false);
-    }
-  };
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([
     {
@@ -733,7 +604,7 @@ export default function App() {
 
   const [takingExamId, setTakingExamId] = useState<string | null>(getInitialExamIdFromUrl);
   const [activeExam, setActiveExam] = useState<Exam | null>(null);
-  const [isLoadingExam, setIsLoadingExam] = useState(false);
+  const [, setIsLoadingExam] = useState(false);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -1419,7 +1290,7 @@ export default function App() {
               questions={questions}
               onSaveCategories={handleSaveCategories}
               isSyncing={isLoadingSheetData}
-              onNavigateToQuestionBank={(catId, name) => {
+              onNavigateToQuestionBank={(catId) => {
                 setSelectedSubject(String(catId));
                 setActivePage('question-bank');
               }}

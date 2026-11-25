@@ -10,13 +10,11 @@ import {
 } from '@/services/googleAuth';
 import {
   DATABASE_TABLE_SCHEMAS,
-  createFullDatabaseSpreadsheet,
   syncAllToSpreadsheet,
   readAllTablesFromSpreadsheet,
   extractSpreadsheetId,
   fetchSpreadsheetStats,
   getEnvConfiguredSpreadsheetUrl,
-  SheetTableSchema,
 } from '@/services/publicSheet';
 import { ensurePersonalSpreadsheetTablesExist, createPersonalDatabaseSpreadsheet } from '@/services/userSheet';
 import { Question, ExamPaper } from '@/types';
@@ -76,7 +74,7 @@ export const GoogleSheetsView: React.FC<GoogleSheetsViewProps> = ({
   // Listen for auth state
   useEffect(() => {
     const unsubscribe = initAuth(
-      (user, token) => {
+      (user) => {
         setCurrentUser(user);
       },
       () => {
@@ -133,7 +131,7 @@ export const GoogleSheetsView: React.FC<GoogleSheetsViewProps> = ({
       try {
         const signResult = await googleSignIn();
         token = signResult?.accessToken || null;
-      } catch (e) {
+      } catch {
         onShowToast('建立失敗: 需先完成 Google 授權', 'error');
         return;
       }
@@ -202,7 +200,7 @@ export const GoogleSheetsView: React.FC<GoogleSheetsViewProps> = ({
       try {
         const signResult = await googleSignIn();
         token = signResult?.accessToken || null;
-      } catch (e) {
+      } catch {
         onShowToast('同步失敗: 需先完成 Google 授權', 'error');
         return;
       }
@@ -258,7 +256,7 @@ export const GoogleSheetsView: React.FC<GoogleSheetsViewProps> = ({
       try {
         const signResult = await googleSignIn();
         token = signResult?.accessToken || null;
-      } catch (e) {
+      } catch {
         onShowToast('讀取失敗: 需先完成 Google 授權', 'error');
         return;
       }
@@ -303,7 +301,7 @@ export const GoogleSheetsView: React.FC<GoogleSheetsViewProps> = ({
       try {
         const signResult = await googleSignIn();
         token = signResult?.accessToken || null;
-      } catch (e) {
+      } catch {
         onShowToast('測試失敗: 需先完成 Google 授權', 'error');
         return;
       }
@@ -336,7 +334,7 @@ export const GoogleSheetsView: React.FC<GoogleSheetsViewProps> = ({
       try {
         const signResult = await googleSignIn();
         token = signResult?.accessToken || null;
-      } catch (e) {
+      } catch {
         onShowToast('初始化失敗: 需先完成 Google 授權', 'error');
         return;
       }
@@ -420,6 +418,7 @@ export const GoogleSheetsView: React.FC<GoogleSheetsViewProps> = ({
           {currentUser ? (
             <div className="flex items-center gap-3 bg-white px-3 py-1.5 rounded-xl border border-[#c3c6d7]/50 shadow-xs">
               {currentUser.photoURL ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
                 <img
                   src={currentUser.photoURL}
                   alt={currentUser.displayName || 'Google User'}

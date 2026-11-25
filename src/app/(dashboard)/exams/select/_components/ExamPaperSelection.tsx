@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { ExamPaper, SubjectId, UserProfile } from '@/types';
 import { clearSession } from '@/contexts/examStorage';
 import { SheetBindGuardModal } from '@/components/common/SheetBindGuardModal';
@@ -47,6 +48,7 @@ export function ExamPaperSelection({
   currentUser?: UserProfile | null;
   onNavigate?: (page: string) => void;
 }) {
+  const router = useRouter();
   const [paperTab, setPaperTab] = useState<'public' | 'private'>(() => {
     if (typeof window !== 'undefined') {
       const saved = sessionStorage.getItem('exam_paper_tab');
@@ -86,11 +88,12 @@ export function ExamPaperSelection({
         ? `🎉 成功為試算表建立標準分頁：${res.createdSheets.join(', ')}，並填入公用格式標題！`
         : `✅ 試算表格式已符合規範（test_bank, quiz_bank_publish, quiz_bank_unpublish, log）！`;
       setInitSheetMessage(msg);
-    } catch (err: any) {
-      if (err?.code === 'auth/unauthorized-domain' || err?.message?.includes('auth/unauthorized-domain')) {
+    } catch (err: unknown) {
+      const error = err as { code?: string; message?: string };
+      if (error?.code === 'auth/unauthorized-domain' || error?.message?.includes('auth/unauthorized-domain')) {
         setInitSheetMessage('⚠️ 本地開發環境 (localhost) 尚未列入 Firebase 授權網域。建議直接點擊「一鍵複製標準範本」，在您的 Google 雲端秒速建立完整標準試算表！');
       } else {
-        setInitSheetMessage(`建立失敗: ${err.message || '未知錯誤'}`);
+        setInitSheetMessage(`建立失敗: ${error?.message || '未知錯誤'}`);
       }
     } finally {
       setIsInitializingSheet(false);
@@ -180,8 +183,8 @@ export function ExamPaperSelection({
           setIsGuardModalOpen(false);
           if (onNavigate) {
             onNavigate('user-settings');
-          } else if (typeof window !== 'undefined') {
-            window.location.href = '/profile';
+          } else {
+            router.push('/profile');
           }
         }}
       />

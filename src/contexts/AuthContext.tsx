@@ -4,7 +4,6 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from 'firebase/auth';
 import { UserProfile } from '@/types';
 import { initAuth, googleSignIn, logoutGoogle } from '@/services/googleAuth';
-import { getEnvConfiguredSpreadsheetUrl } from '@/services/publicSheet';
 
 interface AuthContextValue {
   firebaseUser: User | null;

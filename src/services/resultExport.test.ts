@@ -47,4 +47,108 @@ describe('result exports', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status, json: async () => ({ error: { message: 'failed' } }) }));
     await expect(exportWrongQuestionsToGoogleSheet(items, '測驗', 'token')).rejects.toThrow();
   });
+
+  it('triggers browser download for wrong questions excel file', async () => {
+    vi.stubGlobal('URL', {
+      createObjectURL: vi.fn().mockReturnValue('blob:xlsx-url'),
+      revokeObjectURL: vi.fn(),
+    });
+    const realLink = document.createElement('a');
+    const clickMock = vi.spyOn(realLink, 'click').mockImplementation(() => {});
+    vi.spyOn(document, 'createElement').mockReturnValue(realLink);
+
+    const { downloadWrongQuestions } = await import('./resultExport');
+    await downloadWrongQuestions(items, '模擬考/第1回');
+
+    expect(clickMock).toHaveBeenCalled();
+    expect(realLink.download).toBe('錯題_模擬考_第1回.xlsx');
+  });
+
+  it('appends to bound user spreadsheet when Review notebook already exists', async () => {
+    const fetchMock = vi.fn()
+      // 1. Meta query returns existing Review notebook
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          sheets: [{ properties: { title: 'Review notebook' } }],
+        }),
+      })
+      // 2. Append values
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ updates: { updatedRows: 1 } }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await exportWrongQuestionsToGoogleSheet(items, '測驗', 'token', {
+      userSheetUrl: 'https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit',
+      submittedAt: '2026/11/25 10:00:00',
+    });
+
+    expect(result).toBe('https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toContain("'Review notebook'!A1:append");
+  });
+
+  it('creates Review notebook sheet and writes headers when sheet does not exist yet', async () => {
+    const fetchMock = vi.fn()
+      // 1. Meta query returns no Review notebook
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          sheets: [{ properties: { title: 'Sheet1' } }],
+        }),
+      })
+      // 2. Add sheet batchUpdate
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ replies: [] }),
+      })
+      // 3. Write header row
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ updatedCells: 11 }),
+      })
+      // 4. Append values
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ updates: { updatedRows: 1 } }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await exportWrongQuestionsToGoogleSheet(items, '測驗', 'token', {
+      userSheetUrl: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+    });
+
+    expect(result).toBe('https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit');
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it('throws error when user spreadsheet operations fail', async () => {
+    // 1. Meta query returns 401
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({}) }));
+    await expect(
+      exportWrongQuestionsToGoogleSheet(items, '測驗', 'token', {
+        userSheetUrl: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+      })
+    ).rejects.toThrow('Google 授權已過期');
+
+    // 2. Meta query returns 403
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({ ok: false, status: 403, json: async () => ({}) }));
+    await expect(
+      exportWrongQuestionsToGoogleSheet(items, '測驗', 'token', {
+        userSheetUrl: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+      })
+    ).rejects.toThrow('Google 拒絕存取');
+  });
+
+  it('throws error when Google returns invalid spreadsheet ID during fallback creation', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ spreadsheetId: '!!invalid-id!!' }),
+    }));
+    await expect(exportWrongQuestionsToGoogleSheet(items, '測驗', 'token')).rejects.toThrow(
+      'Google 未回傳有效的試算表 ID'
+    );
+  });
 });

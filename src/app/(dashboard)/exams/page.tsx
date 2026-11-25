@@ -25,6 +25,17 @@ export interface ExamValidationReport {
   missingFields: string[];
 }
 
+const SUBJECT_NAMES: Record<string, string> = {
+  math: '數學',
+  english: '英文',
+  chinese: '國文',
+  physics: '自然 (物理)',
+  biology: '自然 (生物)',
+  chemistry: '自然 (化學)',
+  geography: '社會 (地理)',
+  history: '社會 (歷史)',
+};
+
 export const ExamPapersView: React.FC<ExamPapersViewProps> = ({
   examPapers = [],
   selectedExamIds = [],
@@ -117,17 +128,6 @@ export const ExamPapersView: React.FC<ExamPapersViewProps> = ({
     actions: true,
   });
 
-  const subjectNames: Record<string, string> = {
-    math: '數學',
-    english: '英文',
-    chinese: '國文',
-    physics: '自然 (物理)',
-    biology: '自然 (生物)',
-    chemistry: '自然 (化學)',
-    geography: '社會 (地理)',
-    history: '社會 (歷史)',
-  };
-
   const draftExamsCount = useMemo(
     () => examPapers.filter((e) => e.status === 'draft').length,
     [examPapers]
@@ -207,7 +207,7 @@ export const ExamPapersView: React.FC<ExamPapersViewProps> = ({
 
   const activeFilterSummary = useMemo(() => {
     const parts: string[] = [];
-    if (subjectFilter !== 'all') parts.push(`科目: ${subjectNames[subjectFilter] || subjectFilter}`);
+    if (subjectFilter !== 'all') parts.push(`科目: ${SUBJECT_NAMES[subjectFilter] || subjectFilter}`);
     if (difficultyFilter !== 'all') parts.push(`難度: Lv.${difficultyFilter}`);
     if (statusFilter !== 'all') parts.push(`狀態: ${statusFilter === 'published' ? '已發布' : '草稿'}`);
     return parts.join('、');

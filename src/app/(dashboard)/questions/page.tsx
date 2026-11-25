@@ -1,9 +1,36 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Question, SubjectId, SubjectFilter, QuestionType, DifficultyLevel, ColumnVisibilityState, CategoryItem } from '@/types';
+import { Question, SubjectFilter, QuestionType, ColumnVisibilityState, CategoryItem } from '@/types';
 import { ColumnVisibilityMenu } from '@/app/(dashboard)/questions/_components/ColumnVisibilityMenu';
 import { buildCategoryBreadcrumb, getAllDescendantCategoryIds } from '@/utils/categoryTree';
+
+const SUBJECT_TITLES: Record<SubjectFilter, string> = {
+  all: '題目列表總表 (全部科目)',
+  math: '數學科 (Math)',
+  chinese: '國文科 (Chinese)',
+  english: '英文科 (English)',
+  physics: '自然 (物理)',
+  chemistry: '自然 (化學)',
+  biology: '自然 (生物)',
+  astronomy: '自然 (天文)',
+  civics: '社會 (公民)',
+  geography: '社會 (地理)',
+  history: '社會 (歷史)',
+};
+
+const SUBJECT_SHORT_NAMES: Record<string, string> = {
+  math: '數學',
+  chinese: '國文',
+  english: '英文',
+  physics: '物理',
+  chemistry: '化學',
+  biology: '生物',
+  astronomy: '天文',
+  civics: '公民',
+  geography: '地理',
+  history: '歷史',
+};
 
 interface QuestionBankViewProps {
   subjectId?: SubjectFilter;
@@ -104,33 +131,6 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
     actions: true,
   });
 
-  const subjectTitles: Record<SubjectFilter, string> = {
-    all: '題目列表總表 (全部科目)',
-    math: '數學科 (Math)',
-    chinese: '國文科 (Chinese)',
-    english: '英文科 (English)',
-    physics: '自然 (物理)',
-    chemistry: '自然 (化學)',
-    biology: '自然 (生物)',
-    astronomy: '自然 (天文)',
-    civics: '社會 (公民)',
-    geography: '社會 (地理)',
-    history: '社會 (歷史)',
-  };
-
-  const subjectShortNames: Record<string, string> = {
-    math: '數學',
-    chinese: '國文',
-    english: '英文',
-    physics: '物理',
-    chemistry: '化學',
-    biology: '生物',
-    astronomy: '天文',
-    civics: '公民',
-    geography: '地理',
-    history: '歷史',
-  };
-
   // Real mock data questions for current subject or all subjects
   const currentSubjectQuestions = useMemo(() => {
     if (subjectId === 'all') {
@@ -164,7 +164,7 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
 
   const displaySubjectTitle = useMemo(() => {
     if (subjectId === 'all') return '題目列表總表';
-    if (subjectId in subjectTitles) return subjectTitles[subjectId as keyof typeof subjectTitles]?.split(' ')[0] || String(subjectId);
+    if (subjectId in SUBJECT_TITLES) return SUBJECT_TITLES[subjectId as keyof typeof SUBJECT_TITLES]?.split(' ')[0] || String(subjectId);
 
     const numId = Number(subjectId);
     if (!isNaN(numId) && numId > 0 && categories && categories.length > 0) {
@@ -179,7 +179,7 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
     }
 
     return String(subjectId);
-  }, [subjectId, categories, subjectTitles]);
+  }, [subjectId, categories]);
 
   // Actual dynamic counts from mock data
   const totalSubjectCount = currentSubjectQuestions.length;
@@ -633,7 +633,7 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {subjectId === 'all' && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#dae2fd] text-[#004ac6] font-sans font-medium tracking-normal shrink-0">
-                              {subjectShortNames[q.subjectId] || q.subjectId}
+                              {SUBJECT_SHORT_NAMES[q.subjectId] || q.subjectId}
                             </span>
                           )}
                           <span>{q.id}</span>

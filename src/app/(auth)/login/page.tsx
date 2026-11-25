@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { UserProfile, RoleItem } from '@/types';
 import {
   authenticateUserFromSheet,
@@ -25,6 +26,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   spreadsheetId,
   accessToken,
 }) => {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'login' | 'guide'>('login');
   const [identifier, setIdentifier] = useState('');
   const [credential, setCredential] = useState('');
@@ -412,8 +414,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   onClick={() => {
                     if (onNavigateToRegister) {
                       onNavigateToRegister();
-                    } else if (typeof window !== 'undefined') {
-                      window.location.href = '/register';
+                    } else {
+                      router.push('/register');
                     }
                   }}
                   className="text-[#004ac6] font-bold hover:underline cursor-pointer"

@@ -70,7 +70,7 @@ const SUBJECT_PARSE_MAP: Record<string, SubjectId> = {
   '社會 (歷史)': 'history',
 };
 
-function parseSubject(raw: string): SubjectId | null {
+export function parseSubject(raw: string): SubjectId | null {
   const normalized = raw.trim().toLowerCase();
   if (!normalized) return null;
   if (SUBJECT_PARSE_MAP[normalized]) return SUBJECT_PARSE_MAP[normalized];
@@ -82,7 +82,7 @@ function parseSubject(raw: string): SubjectId | null {
   return raw.trim();
 }
 
-function parseQuestionType(raw: string): 'single' | 'multiple' | 'true_false' | null {
+export function parseQuestionType(raw: string): 'single' | 'multiple' | 'true_false' | null {
   const normalized = raw.trim().toLowerCase();
   if (!normalized) return null;
   if (
@@ -214,7 +214,7 @@ async function unzipBuffer(buffer: ArrayBuffer): Promise<Record<string, string>>
 /**
  * Convert Excel column letters (e.g. "A", "M", "AA") to 0-based index
  */
-function colRefToIndex(cellRef: string): number {
+export function colRefToIndex(cellRef: string): number {
   const match = cellRef.match(/^[A-Za-z]+/);
   if (!match) return 0;
   const letters = match[0].toUpperCase();
@@ -314,7 +314,7 @@ async function parseXlsxRows(buffer: ArrayBuffer): Promise<string[][]> {
 /**
  * Parse CSV text into 2D string array (handling quoted fields and commas/newlines)
  */
-function parseCsvRows(text: string): string[][] {
+export function parseCsvRows(text: string): string[][] {
   const rows: string[][] = [];
   let currentRow: string[] = [];
   let currentField = '';

@@ -12,8 +12,8 @@ export default defineConfig({
     include: ["src/**/*.test.{ts,tsx}"],
     coverage: {
       provider: "v8",
-      // text: 終端機顯示表格 | json-summary: 供 GitHub Actions 上傳留存 | html: 本機視覺化報告
-      reporter: ["text", "json-summary", "html"],
+      // text: 終端機顯示表格 | json-summary: 供 GitHub Actions 上傳留存 | html: 本機視覺化報告 | lcov: 供 SonarQube Cloud 通用
+      reporter: ["text", "json-summary", "html", "lcov"],
       include: ["src/**/*.{ts,tsx}"],
       exclude: [
         "src/test/**",

@@ -518,6 +518,7 @@ export const UploadExamModal: React.FC<UploadExamModalProps> = ({
                       <div className="pl-7 mt-1 pt-1.5 border-t border-[#e8edff] flex flex-wrap items-center gap-2">
                         {q.imageUrl ? (
                           <div className="flex items-center gap-2 bg-[#f0f4ff] px-2.5 py-1 rounded-lg border border-[#c3c6d7]/60 max-w-full">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                               src={q.imageUrl}
                               alt="題目附圖預覽"

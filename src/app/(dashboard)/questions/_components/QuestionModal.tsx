@@ -26,7 +26,6 @@ export const CreateQuestionModal: React.FC<CreateQuestionModalProps> = ({
   const [categoryId, setCategoryId] = useState<number | undefined>(initialQuestion?.categoryId);
   const [type, setType] = useState<'single' | 'multiple' | 'true_false'>('single');
   const [content, setContent] = useState('');
-  const [difficulty, setDifficulty] = useState<DifficultyLevel>('medium');
   const [difficultyScore, setDifficultyScore] = useState<number>(3);
   const [points, setPoints] = useState(6);
   const [time, setTime] = useState<number>(5);
@@ -45,7 +44,6 @@ export const CreateQuestionModal: React.FC<CreateQuestionModalProps> = ({
         setCategoryId(initialQuestion.categoryId);
         if (initialQuestion.type) setType(initialQuestion.type);
         if (initialQuestion.content) setContent(initialQuestion.content);
-        if (initialQuestion.difficulty) setDifficulty(initialQuestion.difficulty);
         setDifficultyScore(initialQuestion.difficultyScore ?? (initialQuestion.difficulty === 'hard' ? 4 : initialQuestion.difficulty === 'medium' ? 3 : 2));
         setPoints(initialQuestion.points);
         setTime(initialQuestion.time ?? 5);
@@ -67,7 +65,6 @@ export const CreateQuestionModal: React.FC<CreateQuestionModalProps> = ({
         setCategoryId(undefined);
         setType('single');
         setContent('');
-        setDifficulty('medium');
         setDifficultyScore(3);
         setPoints(6);
         setTime(5);
@@ -245,7 +242,6 @@ export const CreateQuestionModal: React.FC<CreateQuestionModalProps> = ({
                 onChange={(e) => {
                   const val = parseFloat(e.target.value) || 3;
                   setDifficultyScore(val);
-                  setDifficulty(val >= 4.0 ? 'hard' : val >= 2.5 ? 'medium' : 'easy');
                 }}
                 className="bg-[#f2f4f6] text-[#191c1e] font-mono text-[13px] px-3 py-2 rounded-lg border border-[#c3c6d7] focus:ring-2 focus:ring-[#004ac6]/40 focus:outline-none"
               />

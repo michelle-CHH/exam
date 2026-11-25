@@ -32,7 +32,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({ profile, onSave }) => 
         setSheetUrl(profile.google_sheet_URL ?? '');
       });
     }
-  }, [profile?.nickname, profile?.name, profile?.google_sheet_URL]);
+  }, [profile]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

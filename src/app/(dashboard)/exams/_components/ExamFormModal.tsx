@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Question, ExamPaper } from '@/types';
 import { formatSheetTimestamp } from '@/utils/formatters';
 import { getSubjectDisplayName } from '@/services/publicSheet';
@@ -50,9 +50,9 @@ export const ExamGenerationModal: React.FC<ExamGenerationModalProps> = ({
         )
       : 0;
 
-  const handleFinish = () => {
+  const handleFinish = useCallback(() => {
     onClose();
-  };
+  }, [onClose]);
 
   useEffect(() => {
     if (isOpen) {
@@ -92,7 +92,7 @@ export const ExamGenerationModal: React.FC<ExamGenerationModalProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, step]);
+  }, [isOpen, step, handleFinish, onClose]);
 
   if (!isOpen) return null;
 

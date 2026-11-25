@@ -44,7 +44,6 @@ googleProvider.addScope('https://www.googleapis.com/auth/drive.readonly');
 
 // In-memory token storage (DO NOT store in localStorage or sessionStorage per security guidelines)
 let cachedAccessToken: string | null = null;
-let isSigningIn = false;
 
 /**
  * Initialize Firebase Auth state listener.
@@ -74,8 +73,6 @@ export const initAuth = (
  */
 export const googleSignIn = async (): Promise<{ user: User | null; accessToken: string } | null> => {
   try {
-    isSigningIn = true;
-
     // 1. 優先嘗試 Firebase Auth
     try {
       const result = await signInWithPopup(auth, googleProvider);
@@ -102,8 +99,6 @@ export const googleSignIn = async (): Promise<{ user: User | null; accessToken: 
   } catch (error: unknown) {
     console.error('Google Sign-in failed:', error);
     throw error;
-  } finally {
-    isSigningIn = false;
   }
 };
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 export interface DeleteItem {
   id: string;
@@ -27,10 +27,10 @@ export const TwoPhaseDeleteModal: React.FC<TwoPhaseDeleteModalProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const successBtnRef = useRef<HTMLButtonElement>(null);
 
-  const handleFinish = () => {
+  const handleFinish = useCallback(() => {
     onConfirmSuccess();
     onClose();
-  };
+  }, [onConfirmSuccess, onClose]);
 
   useEffect(() => {
     if (isOpen) {
@@ -73,7 +73,7 @@ export const TwoPhaseDeleteModal: React.FC<TwoPhaseDeleteModalProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, phase, inputValue]);
+  }, [isOpen, phase, inputValue, handleFinish, onClose]);
 
   if (!isOpen) return null;
 

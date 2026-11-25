@@ -95,6 +95,7 @@ export const QuestionPrompt: React.FC<QuestionPromptProps> = ({
                 className="group relative cursor-zoom-in overflow-hidden rounded-lg border border-[#c3c6d7] bg-[#f8f9fa] shadow-2xs transition-transform hover:scale-[1.01]"
                 title="點擊放大圖片"
               >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={part.src}
                   alt={part.alt}
@@ -130,6 +131,7 @@ export const QuestionPrompt: React.FC<QuestionPromptProps> = ({
             className="group relative inline-block cursor-zoom-in overflow-hidden rounded-lg border border-[#c3c6d7] bg-[#f8f9fa] shadow-2xs transition-transform hover:scale-[1.01]"
             title="點擊放大圖片"
           >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={normalizedExtraImageUrl}
               alt="題目附圖"
@@ -166,6 +168,7 @@ export const QuestionPrompt: React.FC<QuestionPromptProps> = ({
             >
               <span className="material-symbols-outlined text-[20px]">close</span>
             </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={activeLightboxImg.src}
               alt={activeLightboxImg.alt}
