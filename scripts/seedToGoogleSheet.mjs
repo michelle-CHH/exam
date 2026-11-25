@@ -19,11 +19,7 @@ async function fetchSheetRows(name) {
 }
 
 // 舊版一次性種子腳本 (試算表已完成初始化，本腳本安全封存)
-let assignedExam = { questions: [] };
-try {
-  const mod = await import('../src/services/mockExamData.ts');
-  assignedExam = mod.assignedExam || { questions: [] };
-} catch { }
+const assignedExam = { questions: [] };
 
 const QUESTION_ANSWERS = {
   'assigned-01': { answer: 'B', explanation: '算術邏輯單元（ALU）負責執行所有算術運算與邏輯判斷。', tags: '計算機結構, ALU' },

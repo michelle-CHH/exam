@@ -1,6 +1,6 @@
 export type Answer = string | string[];
 
-export type ExamStatus = 'running' | 'paused' | 'submitted';
+type ExamStatus = 'running' | 'paused' | 'submitted';
 
 export interface ExamSessionState {
   examId: string;

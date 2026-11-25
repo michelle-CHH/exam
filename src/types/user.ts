@@ -1,5 +1,5 @@
-export type UserRoleCode = 'ADMIN' | 'USER' | 'TEACHER' | 'EXAMINER' | 'STUDENT' | 'GUEST' | string;
-export type UserRole = 'student' | 'teacher' | 'admin' | UserRoleCode;
+type UserRoleCode = 'ADMIN' | 'USER' | 'TEACHER' | 'EXAMINER' | 'STUDENT' | 'GUEST' | string;
+type UserRole = 'student' | 'teacher' | 'admin' | UserRoleCode;
 
 export interface RoleItem {
   id: number;

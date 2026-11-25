@@ -1,4 +1,4 @@
-export type BuiltinSubjectId =
+type BuiltinSubjectId =
   | 'chinese'
   | 'english'
   | 'math'
@@ -16,7 +16,7 @@ export type SubjectFilter = SubjectId | 'all';
 
 export type QuestionType = 'all' | 'single' | 'multiple' | 'true_false' | 'boolean';
 
-export type ExamQuestionType = 'single' | 'multiple' | 'boolean';
+type ExamQuestionType = 'single' | 'multiple' | 'boolean';
 
 export type DifficultyLevel = 'easy' | 'medium' | 'hard';
 

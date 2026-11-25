@@ -106,5 +106,3 @@ export function QuestionDisplay({ question, number, answer, flagged, onAnswer, o
     </section>
   );
 }
-
-export { QuestionDisplay as QuestionCard };

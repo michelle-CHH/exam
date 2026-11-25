@@ -69,5 +69,3 @@ export function ExamCard({ exams }: { exams: Exam[] }) {
     </div>
   );
 }
-
-export { ExamCard as ExamList };

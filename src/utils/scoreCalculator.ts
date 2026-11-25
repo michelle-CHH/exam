@@ -26,7 +26,7 @@ export function countFlagged(exam: Exam, flags: string[]): number {
 /**
  * Calculate score, correct/wrong count, and subject breakdown for an exam submission
  */
-export function calculateExamScore(
+export function calculateScore(
   questions: Question[],
   userAnswers: Record<string, string[]>
 ): {
@@ -86,6 +86,4 @@ export function calculateExamScore(
     analysis,
   };
 }
-
-export const calculateScore = calculateExamScore;
 

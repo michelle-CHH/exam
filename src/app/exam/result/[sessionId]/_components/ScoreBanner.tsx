@@ -35,5 +35,3 @@ export function ScoreBanner({ exam, autoSubmitted, answers = {}, onReset, onExit
   return <ResultReport exam={exam} answers={answers} autoSubmitted={autoSubmitted} onReset={onReset} onExit={onExit}
     initiallyExpanded={false} savedUrl={savedUrl} warning={warning} />;
 }
-
-export { ScoreBanner as SuccessView };

@@ -2,7 +2,7 @@ import { Question } from '@/types/question';
 import { ExamPaper } from '@/types/exam';
 import { AuditLog, UserProfile, RoleItem } from '@/types/user';
 
-export interface SheetQuestionRow {
+interface SheetQuestionRow {
   id: string;
   test_id: string;
   question: string;
@@ -11,7 +11,7 @@ export interface SheetQuestionRow {
   explanation?: string;
 }
 
-export interface SheetExamRow {
+interface SheetExamRow {
   id: string;
   title: string;
   subtitle?: string;
@@ -28,7 +28,7 @@ export interface CategoryItem {
   sort_order: number;
 }
 
-export interface SheetColumnDefinition {
+interface SheetColumnDefinition {
   key: string;
   label: string;
   desc: string;

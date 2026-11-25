@@ -71,8 +71,11 @@ export async function createPersonalDatabaseSpreadsheet(
   const batchData = targetTables.map((tableName) => {
     const standardColumns = DATABASE_TABLE_SCHEMAS[tableName]?.columns || [];
     const labels = standardColumns.map((c) => c.label);
-    if (tableName === 'quiz_bank_publish' || tableName === 'quiz_bank_unpublish') {
-      if (!labels.includes('test_id')) labels.push('test_id');
+    if (
+      (tableName === 'quiz_bank_publish' || tableName === 'quiz_bank_unpublish') &&
+      !labels.includes('test_id')
+    ) {
+      labels.push('test_id');
     }
     return {
       range: `${tableName}!A1`,
@@ -176,8 +179,11 @@ export async function ensurePersonalSpreadsheetTablesExist(
     for (const title of sheetsToCheck) {
       const standardColumns = DATABASE_TABLE_SCHEMAS[title]?.columns || [];
       const standardLabels = standardColumns.map((c) => c.label);
-      if (title === 'quiz_bank_publish' || title === 'quiz_bank_unpublish') {
-        if (!standardLabels.includes('test_id')) standardLabels.push('test_id');
+      if (
+        (title === 'quiz_bank_publish' || title === 'quiz_bank_unpublish') &&
+        !standardLabels.includes('test_id')
+      ) {
+        standardLabels.push('test_id');
       }
 
       const existingHeader = headerDataMap[title] || [];

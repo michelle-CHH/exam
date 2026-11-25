@@ -6,7 +6,7 @@ export function cleanOptionText(text: string): string {
   return text.replace(/^[A-Za-z0-9][\.\、\:\)\s]+\s*|^\([A-Za-z0-9]\)\s*/, '').trim();
 }
 
-export interface RowValidationError {
+interface RowValidationError {
   rowNumber: number; // Excel row number (e.g. 2 for first question)
   questionIndex: number; // 1-based question index
   questionPreview: string;
@@ -383,6 +383,73 @@ const EXPECTED_HEADERS = [
 ];
 
 /**
+ * 集中解析多元格式選項（物件、陣列、JSON 字串、多行換行）為 optionsMap 與 parsedOptions
+ */
+export function extractOptionsFromRaw(rawOption: unknown): {
+  optionsMap: Record<string, string>;
+  parsedOptions: string[];
+} {
+  const optionsMap: Record<string, string> = {};
+  const parsedOptions: string[] = [];
+
+  if (!rawOption) return { optionsMap, parsedOptions };
+
+  if (typeof rawOption === 'object' && !Array.isArray(rawOption)) {
+    for (const [key, val] of Object.entries(rawOption as Record<string, unknown>)) {
+      const cleanVal = cleanOptionText(String(val || ''));
+      optionsMap[key.toUpperCase()] = cleanVal;
+      parsedOptions.push(cleanVal);
+    }
+    return { optionsMap, parsedOptions };
+  }
+
+  if (Array.isArray(rawOption)) {
+    rawOption.forEach((opt, oIdx) => {
+      const letter = String.fromCharCode(65 + oIdx);
+      const cleanVal = cleanOptionText(String(opt || ''));
+      optionsMap[letter] = cleanVal;
+      parsedOptions.push(cleanVal);
+    });
+    return { optionsMap, parsedOptions };
+  }
+
+  if (typeof rawOption === 'string') {
+    try {
+      const optObj = JSON.parse(rawOption);
+      if (typeof optObj === 'object' && optObj !== null && !Array.isArray(optObj)) {
+        for (const [key, val] of Object.entries(optObj as Record<string, unknown>)) {
+          const cleanVal = cleanOptionText(String(val || ''));
+          optionsMap[key.toUpperCase()] = cleanVal;
+          parsedOptions.push(cleanVal);
+        }
+        return { optionsMap, parsedOptions };
+      }
+      if (Array.isArray(optObj)) {
+        optObj.forEach((opt, oIdx) => {
+          const letter = String.fromCharCode(65 + oIdx);
+          const cleanVal = cleanOptionText(String(opt || ''));
+          optionsMap[letter] = cleanVal;
+          parsedOptions.push(cleanVal);
+        });
+        return { optionsMap, parsedOptions };
+      }
+    } catch {
+      // 非 JSON 格式，以換行處理
+    }
+
+    const lines = rawOption.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    lines.forEach((l, oIdx) => {
+      const letter = String.fromCharCode(65 + oIdx);
+      const cleanVal = cleanOptionText(l);
+      optionsMap[letter] = cleanVal;
+      parsedOptions.push(cleanVal);
+    });
+  }
+
+  return { optionsMap, parsedOptions };
+}
+
+/**
  * Parse an uploaded JSON exam paper file
  */
 export async function parseJsonExamFile(file: File): Promise<ExamUploadValidationResult> {
@@ -462,53 +529,8 @@ export async function parseJsonExamFile(file: File): Promise<ExamUploadValidatio
       fieldErrors.push('題幹內容不可為空白');
     }
 
-    // 解析選項
-    const rawOption = item.option || item.options;
-    const optionsMap: Record<string, string> = {};
-    const parsedOptions: string[] = [];
-
-    if (rawOption && typeof rawOption === 'object' && !Array.isArray(rawOption)) {
-      // 形式: { "A": "...", "B": "..." }
-      for (const [key, val] of Object.entries(rawOption)) {
-        const cleanVal = cleanOptionText(String(val || ''));
-        optionsMap[key.toUpperCase()] = cleanVal;
-        parsedOptions.push(cleanVal);
-      }
-    } else if (Array.isArray(rawOption)) {
-      // 形式: ["選項1", "選項2", ...]
-      rawOption.forEach((opt, oIdx) => {
-        const letter = String.fromCharCode(65 + oIdx);
-        const cleanVal = cleanOptionText(String(opt || ''));
-        optionsMap[letter] = cleanVal;
-        parsedOptions.push(cleanVal);
-      });
-    } else if (typeof rawOption === 'string') {
-      try {
-        const optObj = JSON.parse(rawOption);
-        if (typeof optObj === 'object' && !Array.isArray(optObj)) {
-          for (const [key, val] of Object.entries(optObj)) {
-            const cleanVal = cleanOptionText(String(val || ''));
-            optionsMap[key.toUpperCase()] = cleanVal;
-            parsedOptions.push(cleanVal);
-          }
-        } else if (Array.isArray(optObj)) {
-          optObj.forEach((opt, oIdx) => {
-            const letter = String.fromCharCode(65 + oIdx);
-            const cleanVal = cleanOptionText(String(opt || ''));
-            optionsMap[letter] = cleanVal;
-            parsedOptions.push(cleanVal);
-          });
-        }
-      } catch {
-        const lines = rawOption.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-        lines.forEach((l, oIdx) => {
-          const letter = String.fromCharCode(65 + oIdx);
-          const cleanVal = cleanOptionText(l);
-          optionsMap[letter] = cleanVal;
-          parsedOptions.push(cleanVal);
-        });
-      }
-    }
+    // 解析選項（透過集中函式處理，消除 5 層縮排金字塔）
+    const { optionsMap, parsedOptions } = extractOptionsFromRaw(item.option || item.options);
 
     if (parsedOptions.length < 2) {
       fieldErrors.push('選項數量不足（至少需提供 2 個選項）');

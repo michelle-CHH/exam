@@ -150,7 +150,7 @@ export async function getAssignedExam(
   };
 }
 
-export { formatSheetTimestamp, formatOptionsToJsonObject, extractSpreadsheetId };
+export { formatSheetTimestamp, extractSpreadsheetId };
 export type { SheetTableSchema, ReadSpreadsheetResult, CategoryItem };
 
 export const DATABASE_TABLE_SCHEMAS: Record<string, SheetTableSchema> = {
@@ -823,273 +823,248 @@ export async function syncAllToSpreadsheet(
 
 type SheetRowValues = (string | number | boolean | null | undefined)[][];
 
-function parseTableValuesToResult(
-  tableValuesMap: Record<string, SheetRowValues>,
-  spreadsheetTitle: string
-): ReadSpreadsheetResult {
+export function parseCategoriesFromSheetRows(catRows: SheetRowValues): CategoryItem[] {
   const categories: CategoryItem[] = [];
-  const catRows = tableValuesMap['categories'] || [];
-  if (catRows.length > 1) {
-    for (let i = 1; i < catRows.length; i++) {
-      const row = catRows[i];
-      if (!row || row.length === 0 || !row[1]) continue;
-      const col0 = String(row[0] || '').trim().toLowerCase();
-      const col1 = String(row[1] || '').trim().toLowerCase();
-      if (col0 === 'id' || col1 === 'categories_name') continue;
+  if (!catRows || catRows.length <= 1) return categories;
 
-      categories.push({
-        id: Number(row[0]) || i,
-        categories_name: String(row[1] || '').trim(),
-        parent_id: Number(row[2]) || 0,
-        level: Number(row[3]) || 1,
-        sort_order: Number(row[4]) || i,
-      });
-    }
-    categories.sort((a, b) => a.sort_order - b.sort_order);
+  for (let i = 1; i < catRows.length; i++) {
+    const row = catRows[i];
+    if (!row || row.length === 0 || !row[1]) continue;
+    const col0 = String(row[0] || '').trim().toLowerCase();
+    const col1 = String(row[1] || '').trim().toLowerCase();
+    if (col0 === 'id' || col1 === 'categories_name') continue;
+
+    categories.push({
+      id: Number(row[0]) || i,
+      categories_name: String(row[1] || '').trim(),
+      parent_id: Number(row[2]) || 0,
+      level: Number(row[3]) || 1,
+      sort_order: Number(row[4]) || i,
+    });
   }
+  categories.sort((a, b) => a.sort_order - b.sort_order);
+  return categories;
+}
 
+export function parseQuestionsFromSheetRows(
+  testBankRows: SheetRowValues,
+  categories: CategoryItem[] = []
+): Question[] {
   const questions: Question[] = [];
-  const testBankRows = tableValuesMap['test_bank'] || [];
-  if (testBankRows.length > 1) {
-    const headerRow = (testBankRows[0] || []).map((h) => String(h || '').trim().toLowerCase());
-    const findIdx = (names: string[], fallback: number) => {
-      const idx = headerRow.findIndex((h) => names.includes(h));
-      return idx >= 0 ? idx : fallback;
-    };
-    const idxTestId = findIdx(['test_id'], 1);
-    const idxQuestion = findIdx(['question'], 2);
-    const idxOption = findIdx(['option', 'options'], 3);
-    const idxAnswer = findIdx(['answer'], 4);
-    const idxExplanation = findIdx(['explanation'], 5);
-    const idxDifficulty = findIdx(['difficulty'], 6);
-    const idxScore = findIdx(['score'], 7);
-    const idxCategory = findIdx(['category_id'], 8);
-    const idxTags = findIdx(['taqs', 'tags'], 9);
-    const idxUpdatedAt = findIdx(['updated_at', 'update_time'], 10);
-    const idxUpdatedBy = findIdx(['updated_by', 'update_by'], 11);
-    const idxTime = headerRow.findIndex((h) => h === 'time' || h === 'duration');
-    const idxImageUrl = headerRow.findIndex((h) => h === 'image_url' || h === 'imageurl' || h === 'img_url' || h === 'image');
+  if (!testBankRows || testBankRows.length <= 1) return questions;
 
-    for (let i = 1; i < testBankRows.length; i++) {
-      const row = testBankRows[i];
-      if (!row || row.length === 0 || !row[idxQuestion]) continue;
-      const col0 = String(row[0] || '').trim().toLowerCase();
-      const col1 = String(row[idxTestId] || '').trim().toLowerCase();
-      const col2 = String(row[idxQuestion] || '').trim().toLowerCase();
-      if (col0 === 'id' || col1 === 'test_id' || col2 === 'question') continue;
+  const headerRow = (testBankRows[0] || []).map((h) => String(h || '').trim().toLowerCase());
+  const findIdx = (names: string[], fallback: number) => {
+    const idx = headerRow.findIndex((h) => names.includes(h));
+    return idx >= 0 ? idx : fallback;
+  };
+  const idxTestId = findIdx(['test_id'], 1);
+  const idxQuestion = findIdx(['question'], 2);
+  const idxOption = findIdx(['option', 'options'], 3);
+  const idxAnswer = findIdx(['answer'], 4);
+  const idxExplanation = findIdx(['explanation'], 5);
+  const idxDifficulty = findIdx(['difficulty'], 6);
+  const idxScore = findIdx(['score'], 7);
+  const idxCategory = findIdx(['category_id'], 8);
+  const idxTags = findIdx(['taqs', 'tags'], 9);
+  const idxUpdatedAt = findIdx(['updated_at', 'update_time'], 10);
+  const idxUpdatedBy = findIdx(['updated_by', 'update_by'], 11);
+  const idxTime = headerRow.findIndex((h) => h === 'time' || h === 'duration');
+  const idxImageUrl = headerRow.findIndex((h) => h === 'image_url' || h === 'imageurl' || h === 'img_url' || h === 'image');
 
-      const testId = String(row[idxTestId] || row[0] || `Q-IMPORT-${i}`).trim();
-      const content = String(row[idxQuestion] || '').trim();
-      const { options: parsedOptions, optionsMap: parsedOptionsMap } = parseSheetOptionJson(row[idxOption]);
+  for (let i = 1; i < testBankRows.length; i++) {
+    const row = testBankRows[i];
+    if (!row || row.length === 0 || !row[idxQuestion]) continue;
+    const col0 = String(row[0] || '').trim().toLowerCase();
+    const col1 = String(row[idxTestId] || '').trim().toLowerCase();
+    const col2 = String(row[idxQuestion] || '').trim().toLowerCase();
+    if (col0 === 'id' || col1 === 'test_id' || col2 === 'question') continue;
 
-      const answer = String(row[idxAnswer] || '').trim();
-      const explanation = String(row[idxExplanation] || '').trim();
+    const testId = String(row[idxTestId] || row[0] || `Q-IMPORT-${i}`).trim();
+    const content = String(row[idxQuestion] || '').trim();
+    const { options: parsedOptions, optionsMap: parsedOptionsMap } = parseSheetOptionJson(row[idxOption]);
 
-      const diffNum = parseFloat(String(row[idxDifficulty]));
-      let difficulty: 'easy' | 'medium' | 'hard' = 'medium';
-      let difficultyScore: number = 3;
+    const answer = String(row[idxAnswer] || '').trim();
+    const explanation = String(row[idxExplanation] || '').trim();
 
-      if (!isNaN(diffNum)) {
-        difficultyScore = diffNum;
-        if (diffNum >= 4.0) difficulty = 'hard';
-        else if (diffNum >= 2.5) difficulty = 'medium';
-        else difficulty = 'easy';
+    const diffNum = parseFloat(String(row[idxDifficulty]));
+    let difficulty: 'easy' | 'medium' | 'hard' = 'medium';
+    let difficultyScore: number = 3;
+
+    if (!isNaN(diffNum)) {
+      difficultyScore = diffNum;
+      if (diffNum >= 4.0) difficulty = 'hard';
+      else if (diffNum >= 2.5) difficulty = 'medium';
+      else difficulty = 'easy';
+    } else {
+      const diffLower = String(row[idxDifficulty] || 'medium').toLowerCase();
+      if (diffLower === 'hard') {
+        difficulty = 'hard';
+        difficultyScore = 4;
+      } else if (diffLower === 'easy') {
+        difficulty = 'easy';
+        difficultyScore = 2;
       } else {
-        const diffLower = String(row[idxDifficulty] || 'medium').toLowerCase();
-        if (diffLower === 'hard') {
-          difficulty = 'hard';
-          difficultyScore = 4;
-        } else if (diffLower === 'easy') {
-          difficulty = 'easy';
-          difficultyScore = 2;
-        } else {
-          difficulty = 'medium';
-          difficultyScore = 3;
-        }
+        difficulty = 'medium';
+        difficultyScore = 3;
       }
-
-      const points = Number(row[idxScore]) || 10;
-      const catId = Number(row[idxCategory]) || 0;
-      const matchedCat = categories.find((c) => c.id === catId);
-      const subjectId = CATEGORY_ID_TO_SUBJECT[catId] || (matchedCat ? matchedCat.categories_name : (catId ? String(catId) : 'other'));
-      const rawTags = String(row[idxTags] || '');
-      const tags = rawTags
-        ? rawTags.split(/[,，、]/).map((t) => t.trim()).filter(Boolean)
-        : [];
-      const updatedAt = String(row[idxUpdatedAt] || new Date().toISOString().split('T')[0]).trim();
-      const updatedBy = Number(row[idxUpdatedBy]) || 1;
-      const timeVal =
-        idxTime >= 0
-          ? Number(row[idxTime]) || 0
-          : row.length > 12
-            ? Number(row[12]) || 0
-            : 0;
-      const imageUrlVal =
-        idxImageUrl >= 0
-          ? String(row[idxImageUrl] || '').trim()
-          : row.length > 13
-            ? String(row[13] || '').trim()
-            : '';
-
-      let type: 'single' | 'multiple' | 'true_false' = 'single';
-      if (answer.includes(',') || answer.includes('、') || answer.length > 2) {
-        type = 'multiple';
-      } else if (parsedOptions.length === 2 && parsedOptions.some((o) => o.includes('正確') || o.includes('True'))) {
-        type = 'true_false';
-      }
-
-      questions.push({
-        id: testId,
-        subjectId,
-        type,
-        content,
-        options: parsedOptions.length > 0 ? parsedOptions : undefined,
-        optionsMap: parsedOptionsMap,
-        correctAnswer: answer || undefined,
-        explanation: explanation || undefined,
-        difficulty,
-        difficultyScore,
-        points,
-        time: timeVal,
-        tags,
-        updatedAt,
-        categoryId: catId,
-        updatedBy,
-        imageUrl: imageUrlVal || undefined,
-        image_url: imageUrlVal || undefined,
-      });
     }
-  }
 
-  const publishedExams: ExamPaper[] = [];
-  const pubRows = tableValuesMap['quiz_bank_publish'] || [];
-  if (pubRows.length > 1) {
-    for (let i = 1; i < pubRows.length; i++) {
-      const row = pubRows[i];
-      if (!row || row.length === 0 || !row[2]) continue;
-      const col0 = String(row[0] || '').trim().toLowerCase();
-      const col1 = String(row[1] || '').trim().toLowerCase();
-      const col2 = String(row[2] || '').trim().toLowerCase();
-      if (col0 === 'id' || col1 === 'quiz_id' || col2 === 'quiz_name') continue;
+    const points = Number(row[idxScore]) || 10;
+    const catId = Number(row[idxCategory]) || 0;
+    const matchedCat = categories.find((c) => c.id === catId);
+    const subjectId = CATEGORY_ID_TO_SUBJECT[catId] || (matchedCat ? matchedCat.categories_name : (catId ? String(catId) : 'other'));
+    const rawTags = String(row[idxTags] || '');
+    const tags = rawTags
+      ? rawTags.split(/[,，、]/).map((t) => t.trim()).filter(Boolean)
+      : [];
+    const updatedAt = String(row[idxUpdatedAt] || new Date().toISOString().split('T')[0]).trim();
+    const updatedBy = Number(row[idxUpdatedBy]) || 1;
+    const timeVal =
+      idxTime >= 0
+        ? Number(row[idxTime]) || 0
+        : row.length > 12
+          ? Number(row[12]) || 0
+          : 0;
+    const imageUrlVal =
+      idxImageUrl >= 0
+        ? String(row[idxImageUrl] || '').trim()
+        : row.length > 13
+          ? String(row[13] || '').trim()
+          : '';
 
-      const quizId = String(row[1] || row[0] || `EXAM-PUB-${i}`).trim();
-      const title = String(row[2] || '').trim();
-      const subjectName = String(row[3] || '數學').trim();
-      const diffMatch = String(row[4] ?? '').match(/(\d+(?:\.\d+)?)/);
-      const difficultyLv = diffMatch ? parseFloat(diffMatch[1]) : 3;
-      const questionCount = Number(row[5]) || 0;
-      const totalScore = Number(row[6]) || 100;
-      const durationMinutes = Number(row[7]) || 0;
-      const createdAt = String(row[8] || new Date().toISOString().split('T')[0]).trim();
-      const rawQuestionIds = String(row[9] || '').trim();
-      const questionIds = rawQuestionIds
-        ? rawQuestionIds.split(/[,，、\s]+/).map((s) => s.trim()).filter(Boolean)
-        : undefined;
-      const matchedCatByName = categories.find((c) => c.categories_name === subjectName);
-      const subjectId = SUBJECT_NAME_MAP[subjectName] || (matchedCatByName ? String(matchedCatByName.id) : subjectName || 'other');
-
-      publishedExams.push({
-        id: quizId,
-        title,
-        description: '',
-        subject: subjectName,
-        subjectId,
-        difficultyLv,
-        questionCount,
-        totalScore,
-        durationMinutes,
-        createdAt,
-        status: 'published',
-        examineeCount: 0,
-        questionIds,
-      });
+    let type: 'single' | 'multiple' | 'true_false' = 'single';
+    if (answer.includes(',') || answer.includes('、') || answer.length > 2) {
+      type = 'multiple';
+    } else if (parsedOptions.length === 2 && parsedOptions.some((o) => o.includes('正確') || o.includes('True'))) {
+      type = 'true_false';
     }
+
+    questions.push({
+      id: testId,
+      subjectId,
+      type,
+      content,
+      options: parsedOptions.length > 0 ? parsedOptions : undefined,
+      optionsMap: parsedOptionsMap,
+      correctAnswer: answer || undefined,
+      explanation: explanation || undefined,
+      difficulty,
+      difficultyScore,
+      points,
+      time: timeVal,
+      tags,
+      updatedAt,
+      categoryId: catId,
+      updatedBy,
+      imageUrl: imageUrlVal || undefined,
+      image_url: imageUrlVal || undefined,
+    });
   }
+  return questions;
+}
 
-  const draftExams: ExamPaper[] = [];
-  const unpubRows = tableValuesMap['quiz_bank_unpublish'] || [];
-  if (unpubRows.length > 1) {
-    for (let i = 1; i < unpubRows.length; i++) {
-      const row = unpubRows[i];
-      if (!row || row.length === 0 || !row[2]) continue;
-      const col0 = String(row[0] || '').trim().toLowerCase();
-      const col1 = String(row[1] || '').trim().toLowerCase();
-      const col2 = String(row[2] || '').trim().toLowerCase();
-      if (col0 === 'id' || col1 === 'quiz_id' || col2 === 'quiz_name') continue;
+export function parseExamsFromSheetRows(
+  examRows: SheetRowValues,
+  status: 'published' | 'draft',
+  categories: CategoryItem[] = []
+): ExamPaper[] {
+  const exams: ExamPaper[] = [];
+  if (!examRows || examRows.length <= 1) return exams;
 
-      const quizId = String(row[1] || row[0] || `EXAM-DRAFT-${i}`).trim();
-      const title = String(row[2] || '').trim();
-      const subjectName = String(row[3] || '數學').trim();
-      const diffMatch = String(row[4] ?? '').match(/(\d+(?:\.\d+)?)/);
-      const difficultyLv = diffMatch ? parseFloat(diffMatch[1]) : 3;
-      const questionCount = Number(row[5]) || 0;
-      const totalScore = Number(row[6]) || 100;
-      const durationMinutes = Number(row[7]) || 0;
-      const createdAt = String(row[8] || new Date().toISOString().split('T')[0]).trim();
-      const rawQuestionIds = String(row[9] || '').trim();
-      const questionIds = rawQuestionIds
-        ? rawQuestionIds.split(/[,，、\s]+/).map((s) => s.trim()).filter(Boolean)
-        : undefined;
-      const matchedCatByName = categories.find((c) => c.categories_name === subjectName);
-      const subjectId = SUBJECT_NAME_MAP[subjectName] || (matchedCatByName ? String(matchedCatByName.id) : subjectName || 'other');
+  for (let i = 1; i < examRows.length; i++) {
+    const row = examRows[i];
+    if (!row || row.length === 0 || !row[2]) continue;
+    const col0 = String(row[0] || '').trim().toLowerCase();
+    const col1 = String(row[1] || '').trim().toLowerCase();
+    const col2 = String(row[2] || '').trim().toLowerCase();
+    if (col0 === 'id' || col1 === 'quiz_id' || col2 === 'quiz_name') continue;
 
-      draftExams.push({
-        id: quizId,
-        title,
-        description: '',
-        subject: subjectName,
-        subjectId,
-        difficultyLv,
-        questionCount,
-        totalScore,
-        durationMinutes,
-        createdAt,
-        status: 'draft',
-        examineeCount: 0,
-        questionIds,
-      });
-    }
+    const quizId = String(row[1] || row[0] || `EXAM-${status.toUpperCase()}-${i}`).trim();
+    const title = String(row[2] || '').trim();
+    const subjectName = String(row[3] || '數學').trim();
+    const diffMatch = String(row[4] ?? '').match(/(\d+(?:\.\d+)?)/);
+    const difficultyLv = diffMatch ? parseFloat(diffMatch[1]) : 3;
+    const questionCount = Number(row[5]) || 0;
+    const totalScore = Number(row[6]) || 100;
+    const durationMinutes = Number(row[7]) || 0;
+    const createdAt = String(row[8] || new Date().toISOString().split('T')[0]).trim();
+    const rawQuestionIds = String(row[9] || '').trim();
+    const questionIds = rawQuestionIds
+      ? rawQuestionIds.split(/[,，、\s]+/).map((s) => s.trim()).filter(Boolean)
+      : undefined;
+    const matchedCatByName = categories.find((c) => c.categories_name === subjectName);
+    const subjectId = SUBJECT_NAME_MAP[subjectName] || (matchedCatByName ? String(matchedCatByName.id) : subjectName || 'other');
+
+    exams.push({
+      id: quizId,
+      title,
+      description: '',
+      subject: subjectName,
+      subjectId,
+      difficultyLv,
+      questionCount,
+      totalScore,
+      durationMinutes,
+      createdAt,
+      status,
+      examineeCount: 0,
+      questionIds,
+    });
   }
+  return exams;
+}
 
+export function parseAuditLogsFromSheetRows(logRows: SheetRowValues): AuditLog[] {
   const auditLogs: AuditLog[] = [];
-  const logRows = tableValuesMap['log'] || [];
-  // Verify that the header of 'log' actually matches log schema (not gviz fallback to first sheet 'users')
+  if (!logRows || logRows.length <= 1) return auditLogs;
+
   const isGenuineLogSheet =
     logRows.length > 0 &&
     (String(logRows[0]?.[1] || '').toLowerCase() === 'log_id' ||
       String(logRows[0]?.[2] || '').toLowerCase() === 'action');
 
-  if (isGenuineLogSheet && logRows.length > 1) {
-    for (let i = 1; i < logRows.length; i++) {
-      const row = logRows[i];
-      if (!row || row.length === 0 || (!row[1] && !row[2])) continue;
-      const col0 = String(row[0] || '').trim().toLowerCase();
-      const col1 = String(row[1] || '').trim().toLowerCase();
-      const col2 = String(row[2] || '').trim().toLowerCase();
-      if (col0 === 'id' || col1 === 'log_id' || col2 === 'action') continue;
+  if (!isGenuineLogSheet) return auditLogs;
 
-      const logId = String(row[1] || row[0] || `#LOG-${i}`).trim();
-      const action = String(row[2] || '').trim();
-      const target = String(row[3] || '').trim();
-      const operator = String(row[4] || '').trim();
-      const timestamp = String(row[5] || '').trim();
-      const rawStatus = String(row[6] || 'success').trim().toLowerCase();
-      const status: 'success' | 'warning' | 'error' =
-        rawStatus === 'warning' ? 'warning' : rawStatus === 'error' ? 'error' : 'success';
+  for (let i = 1; i < logRows.length; i++) {
+    const row = logRows[i];
+    if (!row || row.length === 0 || (!row[1] && !row[2])) continue;
+    const col0 = String(row[0] || '').trim().toLowerCase();
+    const col1 = String(row[1] || '').trim().toLowerCase();
+    const col2 = String(row[2] || '').trim().toLowerCase();
+    if (col0 === 'id' || col1 === 'log_id' || col2 === 'action') continue;
 
-      auditLogs.push({
-        id: logId,
-        action,
-        target,
-        operator,
-        timestamp,
-        status,
-      });
-    }
-    // Sort newest first
-    auditLogs.reverse();
+    const logId = String(row[1] || row[0] || `#LOG-${i}`).trim();
+    const action = String(row[2] || '').trim();
+    const target = String(row[3] || '').trim();
+    const operator = String(row[4] || '').trim();
+    const timestamp = String(row[5] || '').trim();
+    const rawStatus = String(row[6] || 'success').trim().toLowerCase();
+    const status: 'success' | 'warning' | 'error' =
+      rawStatus === 'warning' ? 'warning' : rawStatus === 'error' ? 'error' : 'success';
+
+    auditLogs.push({
+      id: logId,
+      action,
+      target,
+      operator,
+      timestamp,
+      status,
+    });
   }
+  auditLogs.reverse();
+  return auditLogs;
+}
 
+function parseTableValuesToResult(
+  tableValuesMap: Record<string, SheetRowValues>,
+  spreadsheetTitle: string
+): ReadSpreadsheetResult {
+  const categories = parseCategoriesFromSheetRows(tableValuesMap['categories'] || []);
+  const questions = parseQuestionsFromSheetRows(tableValuesMap['test_bank'] || [], categories);
+  const publishedExams = parseExamsFromSheetRows(tableValuesMap['quiz_bank_publish'] || [], 'published', categories);
+  const draftExams = parseExamsFromSheetRows(tableValuesMap['quiz_bank_unpublish'] || [], 'draft', categories);
+  const auditLogs = parseAuditLogsFromSheetRows(tableValuesMap['log'] || []);
   const roles = parseRolesFromSheetRows(tableValuesMap['roles'] || []);
   const users = parseUsersFromSheetRows(tableValuesMap['users'] || [], roles);
 

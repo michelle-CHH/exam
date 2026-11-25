@@ -11,7 +11,7 @@ const eslintConfig = defineConfig([
       sonarjs,
     },
     rules: {
-      // 1. 函式複雜度、巢狀深度與型別異味（ESLint 內建）
+      // 1. 函式複雜度、巢狀深度與型別異味（全專案通用基準）
       "complexity": ["warn", { max: 15 }],
       "max-depth": ["warn", 4],
       "max-lines-per-function": [
@@ -27,15 +27,31 @@ const eslintConfig = defineConfig([
       "sonarjs/no-collapsible-if": "warn",
     },
   },
+  // 針對 React 元件 (.tsx)：僅放寬行數限制至 250 行，完整保留 complexity 與 sonarjs/cognitive-complexity
+  {
+    files: ["**/*.tsx"],
+    rules: {
+      "max-lines-per-function": [
+        "warn",
+        { max: 250, skipBlankLines: true, skipComments: true },
+      ],
+    },
+  },
+  // 針對測試檔案與腳本：關閉函式行數限制（describe 區塊包含大量測試案例屬正常現象）
+  {
+    files: ["**/*.test.{ts,tsx}", "scripts/**"],
+    rules: {
+      "max-lines-per-function": "off",
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
-    // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",
     "build/**",
     "dist/**",
     "next-env.d.ts",
-    // 排除測試與靜態分析產生的報告資料夾，避免 ESLint 誤掃描自動生成的 JS 檔
+    // 排除測試與靜態分析產生的報告資料夾
     "coverage/**",
     "vitest-html/**",
     "jscpd-report/**",

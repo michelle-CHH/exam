@@ -40,5 +40,5 @@ export interface ExamColumnVisibilityState {
   actions: boolean;
 }
 
-export type { QuestionType, ExamQuestionType, ExamOption, ExamQuestion } from '@/types/question';
-export type { Answer, ExamStatus, ExamSessionState } from '@/types/session';
+export type { ExamQuestion } from '@/types/question';
+export type { Answer, ExamSessionState } from '@/types/session';
