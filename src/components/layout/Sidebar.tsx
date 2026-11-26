@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { SubjectId, SubjectFilter, Question, CategoryItem, UserProfile } from '@/types';
-import { CATEGORY_ID_TO_SUBJECT, SUBJECT_NAME_MAP } from '@/services/publicSheet';
+import { SubjectFilter, Question, CategoryItem, UserProfile } from '@/types';
 import { buildCategoryTree, countQuestionsInCategory, CategoryTreeNode } from '@/utils/categoryTree';
 
 export type AppPageId =
@@ -35,10 +34,6 @@ interface SidebarProps {
   onDownloadOfflinePack?: () => void;
   isDownloadingOfflinePack?: boolean;
   isOnline?: boolean;
-}
-
-function resolveCategorySubjectId(cat: CategoryItem): SubjectId | undefined {
-  return CATEGORY_ID_TO_SUBJECT[cat.id] || SUBJECT_NAME_MAP[cat.categories_name] || cat.categories_name;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -310,9 +305,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       const renderTreeItem = (node: CategoryTreeNode, depth: number = 0) => {
                         const hasChildren = node.children && node.children.length > 0;
                         const isExpanded = expandedGroupIds[node.id] ?? true;
-                        const subId = resolveCategorySubjectId(node) || String(node.id);
+                        const subId = String(node.id);
                         const count = countQuestionsInCategory(node.id, categories, questions);
-                        const isSel = (selectedSubject === subId || selectedSubject === String(node.id) || selectedSubject === node.categories_name) && activePage === 'question-bank';
+                        const isSel = (selectedSubject === subId || selectedSubject === node.categories_name) && activePage === 'question-bank';
 
                         return (
                           <div key={node.id} className="flex flex-col gap-0.5">

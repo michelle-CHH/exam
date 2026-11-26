@@ -131,12 +131,19 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
       });
     }
 
-    const matchedByName = categories?.find((c) => c.categories_name === subjectId);
+    const mappedChineseName = SUBJECT_SHORT_NAMES[subjectId];
+    const matchedByName = categories?.find(
+      (c) => c.categories_name === subjectId || (mappedChineseName && c.categories_name === mappedChineseName)
+    );
     if (matchedByName) {
       const allIds = new Set<number>([matchedByName.id, ...getAllDescendantCategoryIds(matchedByName.id, categories)]);
       return questions.filter((q) => {
         if (q.categoryId && allIds.has(Number(q.categoryId))) return true;
-        return q.subjectId === subjectId || q.category_name === subjectId;
+        return (
+          q.subjectId === subjectId ||
+          q.category_name === subjectId ||
+          (mappedChineseName && (q.subjectId === mappedChineseName || q.category_name === mappedChineseName))
+        );
       });
     }
 
@@ -145,7 +152,6 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
 
   const displaySubjectTitle = useMemo(() => {
     if (subjectId === 'all') return '題目列表總表';
-    if (subjectId in SUBJECT_TITLES) return SUBJECT_TITLES[subjectId as keyof typeof SUBJECT_TITLES]?.split(' ')[0] || String(subjectId);
 
     const numId = Number(subjectId);
     if (!isNaN(numId) && numId > 0 && categories && categories.length > 0) {
@@ -153,11 +159,16 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
       if (breadcrumb) return breadcrumb;
     }
 
-    const matchedByName = categories?.find((c) => c.categories_name === subjectId);
+    const mappedChineseName = SUBJECT_SHORT_NAMES[subjectId];
+    const matchedByName = categories?.find(
+      (c) => c.categories_name === subjectId || (mappedChineseName && c.categories_name === mappedChineseName)
+    );
     if (matchedByName) {
       const breadcrumb = buildCategoryBreadcrumb(matchedByName.id, categories);
       if (breadcrumb) return breadcrumb;
     }
+
+    if (subjectId in SUBJECT_TITLES) return SUBJECT_TITLES[subjectId as keyof typeof SUBJECT_TITLES]?.split(' ')[0] || String(subjectId);
 
     return String(subjectId);
   }, [subjectId, categories]);
